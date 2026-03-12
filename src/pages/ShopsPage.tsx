@@ -12,9 +12,10 @@ interface Props {
   onUpdate: (id: string, data: Partial<Shop>) => void;
   onDelete: (id: string) => void;
   onReplaceAll: (shops: Shop[]) => void;
+  onLogout: () => void;
 }
 
-export function ShopsPage({ shops, cities, onAdd, onUpdate, onDelete, onReplaceAll }: Props) {
+export function ShopsPage({ shops, cities, onAdd, onUpdate, onDelete, onReplaceAll, onLogout }: Props) {
   const [cityFilter, setCityFilter] = useState('');
   const [editing, setEditing] = useState<Shop | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -83,12 +84,15 @@ export function ShopsPage({ shops, cities, onAdd, onUpdate, onDelete, onReplaceA
       </div>
 
       {showSettings && (
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex gap-2">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex gap-2 flex-wrap">
           <button onClick={handleExport} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50">
             Export Data
           </button>
           <button onClick={handleImport} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50">
             Import Data
+          </button>
+          <button onClick={onLogout} className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-600 rounded-lg text-xs hover:bg-red-100">
+            Logout
           </button>
         </div>
       )}

@@ -2,18 +2,30 @@ import { useState } from 'react';
 import type { TabId } from './types';
 import { useShops } from './hooks/useShops';
 import { useRoute } from './hooks/useRoute';
+import { isLoggedIn, logout } from './utils/auth';
+import { LoginScreen } from './components/LoginScreen';
 import { BottomNav } from './components/BottomNav';
 import { RouteMap } from './components/RouteMap';
 import { ShopsPage } from './pages/ShopsPage';
 import { RoutePage } from './pages/RoutePage';
 
 function App() {
+  const [authed, setAuthed] = useState(isLoggedIn);
   const [tab, setTab] = useState<TabId>('shops');
   const { shops, cities, addShop, updateShop, deleteShop, replaceAll } = useShops();
   const {
     selectedIds, orderedStops, isOptimized, userLocation, locating,
     toggleShop, selectAll, clearSelection, optimize,
   } = useRoute();
+
+  if (!authed) {
+    return <LoginScreen onLogin={() => setAuthed(true)} />;
+  }
+
+  const handleLogout = () => {
+    logout();
+    setAuthed(false);
+  };
 
   return (
     <div className="flex flex-col h-dvh bg-gray-50">
@@ -37,6 +49,7 @@ function App() {
               onUpdate={updateShop}
               onDelete={deleteShop}
               onReplaceAll={replaceAll}
+              onLogout={handleLogout}
             />
           )}
           {tab === 'route' && (
