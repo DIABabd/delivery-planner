@@ -1,25 +1,30 @@
 import { useState } from 'react';
 import type { Shop } from '../types';
+import type { HomeAddress } from '../utils/storage';
 import { CityFilter } from '../components/CityFilter';
 import { ShopList } from '../components/ShopList';
 import { ShopForm } from '../components/ShopForm';
+import { HomeForm } from '../components/HomeForm';
 import { exportData, importData } from '../utils/storage';
 
 interface Props {
   shops: Shop[];
   cities: string[];
+  home: HomeAddress | null;
   onAdd: (data: Omit<Shop, 'id' | 'createdAt'>) => void;
   onUpdate: (id: string, data: Partial<Shop>) => void;
   onDelete: (id: string) => void;
   onReplaceAll: (shops: Shop[]) => void;
+  onHomeChange: (home: HomeAddress | null) => void;
   onLogout: () => void;
 }
 
-export function ShopsPage({ shops, cities, onAdd, onUpdate, onDelete, onReplaceAll, onLogout }: Props) {
+export function ShopsPage({ shops, cities, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout }: Props) {
   const [cityFilter, setCityFilter] = useState('');
   const [editing, setEditing] = useState<Shop | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHomeForm, setShowHomeForm] = useState(false);
 
   const filtered = cityFilter ? shops.filter(s => s.city === cityFilter) : shops;
 
@@ -84,16 +89,29 @@ export function ShopsPage({ shops, cities, onAdd, onUpdate, onDelete, onReplaceA
       </div>
 
       {showSettings && (
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex gap-2 flex-wrap">
-          <button onClick={handleExport} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50">
-            Export Data
-          </button>
-          <button onClick={handleImport} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50">
-            Import Data
-          </button>
-          <button onClick={onLogout} className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-600 rounded-lg text-xs hover:bg-red-100">
-            Logout
-          </button>
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 space-y-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setShowHomeForm(true)}
+              className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50"
+            >
+              {home ? 'Edit Home' : 'Set Home'}
+            </button>
+            <button onClick={handleExport} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50">
+              Export Data
+            </button>
+            <button onClick={handleImport} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50">
+              Import Data
+            </button>
+            <button onClick={onLogout} className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-600 rounded-lg text-xs hover:bg-red-100">
+              Logout
+            </button>
+          </div>
+          {home && (
+            <p className="text-xs text-gray-500">
+              Home: {home.address}, {home.city}
+            </p>
+          )}
         </div>
       )}
 
@@ -111,6 +129,14 @@ export function ShopsPage({ shops, cities, onAdd, onUpdate, onDelete, onReplaceA
           shop={editing}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditing(null); }}
+        />
+      )}
+
+      {showHomeForm && (
+        <HomeForm
+          home={home}
+          onSave={h => { onHomeChange(h); setShowHomeForm(false); }}
+          onClose={() => setShowHomeForm(false)}
         />
       )}
     </div>

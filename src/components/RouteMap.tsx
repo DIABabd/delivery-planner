@@ -2,6 +2,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, Circle } from
 import L from 'leaflet';
 import { useEffect } from 'react';
 import type { Shop } from '../types';
+import type { HomeAddress } from '../utils/storage';
 import { openSingleNavigation } from '../utils/navigation';
 
 function createNumberedIcon(num: number) {
@@ -50,6 +51,24 @@ const shopPinIcon = L.divIcon({
   iconAnchor: [13, 26],
 });
 
+const homeIcon = L.divIcon({
+  className: '',
+  html: `<div style="
+    background: #16a34a;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  ">🏠</div>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+});
+
 const myLocationIcon = L.divIcon({
   className: '',
   html: `<div style="
@@ -64,25 +83,26 @@ const myLocationIcon = L.divIcon({
   iconAnchor: [8, 8],
 });
 
-function FitBounds({ allShops, routeStops, userLocation }: {
+function FitBounds({ allShops, routeStops, userLocation, home }: {
   allShops: Shop[];
   routeStops: Shop[];
   userLocation: [number, number] | null;
+  home: HomeAddress | null;
 }) {
   const map = useMap();
   useEffect(() => {
     const points: [number, number][] = [];
 
-    // If route is active, fit to route + user location
     if (routeStops.length > 0) {
       routeStops.forEach(s => {
         if (s.lat != null && s.lng != null) points.push([s.lat, s.lng]);
       });
+      if (home) points.push([home.lat, home.lng]);
     } else {
-      // Otherwise fit to all shops
       allShops.forEach(s => {
         if (s.lat != null && s.lng != null) points.push([s.lat, s.lng]);
       });
+      if (home) points.push([home.lat, home.lng]);
     }
 
     if (userLocation) points.push(userLocation);
@@ -94,7 +114,7 @@ function FitBounds({ allShops, routeStops, userLocation }: {
     }
     const bounds = L.latLngBounds(points);
     map.fitBounds(bounds, { padding: [30, 30] });
-  }, [allShops, routeStops, userLocation, map]);
+  }, [allShops, routeStops, userLocation, home, map]);
   return null;
 }
 
@@ -102,22 +122,26 @@ interface Props {
   allShops: Shop[];
   routeStops: Shop[];
   userLocation: [number, number] | null;
+  home?: HomeAddress | null;
 }
 
-export function RouteMap({ allShops, routeStops, userLocation }: Props) {
+export function RouteMap({ allShops, routeStops, userLocation, home }: Props) {
   const allValid = allShops.filter(s => s.lat != null && s.lng != null);
   const routeValid = routeStops.filter(s => s.lat != null && s.lng != null);
   const routeIds = new Set(routeValid.map(s => s.id));
 
-  // Default center: Germany
   const defaultCenter: [number, number] = [53.08, 8.80];
-  const hasAnything = allValid.length > 0 || userLocation;
+  const hasAnything = allValid.length > 0 || userLocation || home;
 
+  // Route line: shops + home at the end
   const routePositions: [number, number][] = routeValid.map(s => [s.lat!, s.lng!]);
+  if (routeValid.length > 0 && home) {
+    routePositions.push([home.lat, home.lng]);
+  }
 
   return (
     <MapContainer
-      center={hasAnything ? (allValid[0] ? [allValid[0].lat!, allValid[0].lng!] : (userLocation ?? defaultCenter)) : defaultCenter}
+      center={hasAnything ? (allValid[0] ? [allValid[0].lat!, allValid[0].lng!] : (home ? [home.lat, home.lng] : (userLocation ?? defaultCenter))) : defaultCenter}
       zoom={hasAnything ? 13 : 7}
       className="w-full h-full"
       zoomControl={false}
@@ -126,9 +150,9 @@ export function RouteMap({ allShops, routeStops, userLocation }: Props) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <FitBounds allShops={allValid} routeStops={routeValid} userLocation={userLocation} />
+      <FitBounds allShops={allValid} routeStops={routeValid} userLocation={userLocation} home={home ?? null} />
 
-      {/* All shops as gray pins (only those NOT in the active route) */}
+      {/* All shops as red pins (only those NOT in the active route) */}
       {allValid.filter(s => !routeIds.has(s.id)).map(shop => (
         <Marker key={shop.id} position={[shop.lat!, shop.lng!]} icon={shopPinIcon}>
           <Popup>
@@ -158,9 +182,21 @@ export function RouteMap({ allShops, routeStops, userLocation }: Props) {
         </Marker>
       ))}
 
-      {/* Route line */}
+      {/* Route line (includes home as final point) */}
       {routePositions.length >= 2 && (
         <Polyline positions={routePositions} color="#2563eb" weight={3} opacity={0.7} />
+      )}
+
+      {/* Home marker */}
+      {home && (
+        <Marker position={[home.lat, home.lng]} icon={homeIcon}>
+          <Popup>
+            <div className="text-sm">
+              <strong>Home</strong><br />
+              {home.address}, {home.city}
+            </div>
+          </Popup>
+        </Marker>
       )}
 
       {/* User location */}

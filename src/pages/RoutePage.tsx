@@ -1,4 +1,5 @@
 import type { Shop } from '../types';
+import type { HomeAddress } from '../utils/storage';
 import { RoutePlanner } from '../components/RoutePlanner';
 import { RouteStopList } from '../components/RouteStopList';
 
@@ -10,6 +11,8 @@ interface Props {
   isOptimized: boolean;
   locating: boolean;
   userLocation: [number, number] | null;
+  home: HomeAddress | null;
+  routeInfo: { distance: number; duration: number; usedOSRM: boolean } | null;
   onToggle: (id: string) => void;
   onSelectAll: (ids: string[]) => void;
   onClear: () => void;
@@ -17,7 +20,7 @@ interface Props {
 }
 
 export function RoutePage({
-  shops, cities, selectedIds, orderedStops, isOptimized, locating, userLocation,
+  shops, cities, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
   onToggle, onSelectAll, onClear, onOptimize,
 }: Props) {
   const hasSelection = selectedIds.size > 0;
@@ -45,8 +48,14 @@ export function RoutePage({
             disabled={!hasLocations || locating}
             className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {locating ? 'Getting your location...' : `Optimize Route (${selectedIds.size} stops)`}
+            {locating ? 'Optimizing route...' : `Optimize Route (${selectedIds.size} stops)`}
           </button>
+        )}
+
+        {!home && hasSelection && (
+          <p className="text-xs text-gray-400 text-center">
+            Tip: Set your home address in Settings so the route ends at home.
+          </p>
         )}
 
         {!hasLocations && hasSelection && (
@@ -55,7 +64,14 @@ export function RoutePage({
           </p>
         )}
 
-        {isOptimized && <RouteStopList stops={orderedStops} userLocation={userLocation} />}
+        {isOptimized && (
+          <RouteStopList
+            stops={orderedStops}
+            userLocation={userLocation}
+            home={home}
+            routeInfo={routeInfo}
+          />
+        )}
       </div>
     </div>
   );
