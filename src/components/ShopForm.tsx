@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Shop } from '../types';
-import { geocodeAddress } from '../utils/geocode';
+import { geocodeAddress, searchShops, type PlaceSuggestion } from '../utils/geocode';
 
 interface Props {
   shop?: Shop | null;
@@ -17,6 +17,57 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
   const [lng, setLng] = useState<number | null>(shop?.lng ?? null);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState('');
+
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  const doSearch = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await searchShops(query);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    } catch {
+      setSuggestions([]);
+    }
+    setSearching(false);
+  }, []);
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    // Debounce search
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => doSearch(value), 600);
+  };
+
+  const selectSuggestion = (s: PlaceSuggestion) => {
+    setName(s.name || name);
+    setAddress(s.address);
+    setCity(s.city);
+    setLat(s.lat);
+    setLng(s.lng);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const handleGeocode = async () => {
     if (!address || !city) return;
@@ -54,15 +105,49 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            type="text"
-            placeholder="Shop Name *"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-            autoFocus
-          />
+          {/* Shop name with autocomplete */}
+          <div className="relative" ref={suggestionsRef}>
+            <input
+              type="text"
+              placeholder="Shop Name *"
+              value={name}
+              onChange={e => handleNameChange(e.target.value)}
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              autoFocus
+              autoComplete="off"
+            />
+            {searching && (
+              <span className="absolute right-3 top-3 text-xs text-gray-400">Searching...</span>
+            )}
+
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto z-[1200]">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={`${s.lat}-${s.lng}-${i}`}
+                    type="button"
+                    onClick={() => selectSuggestion(s)}
+                    className="w-full text-left px-3 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-0"
+                  >
+                    <div className="flex items-start gap-2">
+                      {s.isBremen && (
+                        <span className="shrink-0 mt-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-semibold rounded">
+                          Bremen
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{s.name || 'Unnamed'}</p>
+                        <p className="text-xs text-gray-500 truncate">{s.address}{s.city ? `, ${s.city}` : ''}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <input
             type="text"
             placeholder="Address"
