@@ -88,6 +88,15 @@ export function useRoute() {
     setLocating(false);
   }, [selectedIds, fetchLocation]);
 
+  const reorderStops = useCallback((fromIndex: number, toIndex: number) => {
+    setOrderedStops(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }, []);
+
   return {
     selectedIds,
     orderedStops,
@@ -100,5 +109,6 @@ export function useRoute() {
     selectAll,
     clearSelection,
     optimize,
+    reorderStops,
   };
 }

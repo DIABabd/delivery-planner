@@ -16,11 +16,12 @@ interface Props {
   onSelectAll: (ids: string[]) => void;
   onClear: () => void;
   onOptimize: () => void;
+  onReorder: (from: number, to: number) => void;
 }
 
 export function RoutePage({
   shops, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
-  onToggle, onSelectAll, onClear, onOptimize,
+  onToggle, onSelectAll, onClear, onOptimize, onReorder,
 }: Props) {
   const hasSelection = selectedIds.size > 0;
   const hasLocations = shops.filter(s => selectedIds.has(s.id) && s.lat != null).length >= 2;
@@ -68,6 +69,7 @@ export function RoutePage({
             userLocation={userLocation}
             home={home}
             routeInfo={routeInfo}
+            onReorder={onReorder}
           />
         )}
       </div>

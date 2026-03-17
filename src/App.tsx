@@ -17,7 +17,7 @@ function App() {
   const { shops, addShop, updateShop, deleteShop, replaceAll } = useShops();
   const {
     selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry,
-    toggleShop, selectAll, clearSelection, optimize,
+    toggleShop, selectAll, clearSelection, optimize, reorderStops,
   } = useRoute();
 
   if (!authed) {
@@ -74,6 +74,7 @@ function App() {
               onSelectAll={selectAll}
               onClear={clearSelection}
               onOptimize={() => optimize(shops, home?.lat, home?.lng)}
+              onReorder={reorderStops}
             />
           )}
         </div>
