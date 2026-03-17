@@ -66,8 +66,10 @@ export function RouteStopList({ stops, userLocation, home, routeInfo }: Props) {
               {i + 1}
             </span>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-gray-900 truncate">{stop.name}</p>
-              <p className="text-xs text-gray-500 truncate">{stop.address}, {stop.city}</p>
+              <p className="font-medium text-sm text-gray-900 truncate">{stop.name || stop.address}</p>
+              <p className="text-xs text-gray-500 truncate">
+                {stop.name ? `${stop.address}, ` : ''}{stop.district ? `${stop.district}, ` : ''}{stop.city}
+              </p>
             </div>
             {stop.lat != null && (
               <button

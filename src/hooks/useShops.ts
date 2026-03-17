@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import type { Shop } from '../types';
 import { loadShops, saveShops } from '../utils/storage';
 
@@ -29,14 +29,9 @@ export function useShops() {
     persist(loadShops().filter(s => s.id !== id));
   }, [persist]);
 
-  const cities = useMemo(() => {
-    const set = new Set(shops.map(s => s.city).filter(Boolean));
-    return Array.from(set).sort();
-  }, [shops]);
-
   const replaceAll = useCallback((newShops: Shop[]) => {
     persist(newShops);
   }, [persist]);
 
-  return { shops, cities, addShop, updateShop, deleteShop, replaceAll };
+  return { shops, addShop, updateShop, deleteShop, replaceAll };
 }

@@ -123,9 +123,10 @@ interface Props {
   routeStops: Shop[];
   userLocation: [number, number] | null;
   home?: HomeAddress | null;
+  routeGeometry?: [number, number][] | null;
 }
 
-export function RouteMap({ allShops, routeStops, userLocation, home }: Props) {
+export function RouteMap({ allShops, routeStops, userLocation, home, routeGeometry }: Props) {
   const allValid = allShops.filter(s => s.lat != null && s.lng != null);
   const routeValid = routeStops.filter(s => s.lat != null && s.lng != null);
   const routeIds = new Set(routeValid.map(s => s.id));
@@ -133,11 +134,12 @@ export function RouteMap({ allShops, routeStops, userLocation, home }: Props) {
   const defaultCenter: [number, number] = [53.08, 8.80];
   const hasAnything = allValid.length > 0 || userLocation || home;
 
-  // Route line: shops + home at the end
-  const routePositions: [number, number][] = routeValid.map(s => [s.lat!, s.lng!]);
+  // Route line: use real road geometry if available, otherwise straight lines
+  const fallbackPositions: [number, number][] = routeValid.map(s => [s.lat!, s.lng!]);
   if (routeValid.length > 0 && home) {
-    routePositions.push([home.lat, home.lng]);
+    fallbackPositions.push([home.lat, home.lng]);
   }
+  const routePositions = routeGeometry && routeGeometry.length > 0 ? routeGeometry : fallbackPositions;
 
   return (
     <MapContainer
@@ -157,8 +159,8 @@ export function RouteMap({ allShops, routeStops, userLocation, home }: Props) {
         <Marker key={shop.id} position={[shop.lat!, shop.lng!]} icon={shopPinIcon}>
           <Popup>
             <div className="text-sm">
-              <strong>{shop.name}</strong><br />
-              {shop.address}, {shop.city}
+              <strong>{shop.name || shop.address}</strong><br />
+              {shop.name ? `${shop.address}, ` : ''}{shop.district ? `${shop.district}, ` : ''}{shop.city}
             </div>
           </Popup>
         </Marker>
@@ -169,8 +171,8 @@ export function RouteMap({ allShops, routeStops, userLocation, home }: Props) {
         <Marker key={stop.id} position={[stop.lat!, stop.lng!]} icon={createNumberedIcon(i + 1)}>
           <Popup>
             <div className="text-sm">
-              <strong>#{i + 1} {stop.name}</strong><br />
-              {stop.address}<br />
+              <strong>#{i + 1} {stop.name || stop.address}</strong><br />
+              {stop.name ? `${stop.address}` : ''}{stop.district ? ` - ${stop.district}` : ''}<br />
               <button
                 onClick={() => openSingleNavigation(stop.lat!, stop.lng!)}
                 style={{ color: '#2563eb', fontWeight: 600, marginTop: 4, cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}

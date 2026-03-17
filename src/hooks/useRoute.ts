@@ -9,6 +9,7 @@ export function useRoute() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locating, setLocating] = useState(false);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number; usedOSRM: boolean } | null>(null);
+  const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
 
   const toggleShop = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -20,6 +21,7 @@ export function useRoute() {
     setIsOptimized(false);
     setOrderedStops([]);
     setRouteInfo(null);
+    setRouteGeometry(null);
   }, []);
 
   const selectAll = useCallback((ids: string[]) => {
@@ -27,6 +29,7 @@ export function useRoute() {
     setIsOptimized(false);
     setOrderedStops([]);
     setRouteInfo(null);
+    setRouteGeometry(null);
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -34,6 +37,7 @@ export function useRoute() {
     setOrderedStops([]);
     setIsOptimized(false);
     setRouteInfo(null);
+    setRouteGeometry(null);
   }, []);
 
   const fetchLocation = useCallback((): Promise<[number, number] | null> => {
@@ -79,6 +83,7 @@ export function useRoute() {
 
     setOrderedStops(result.shops);
     setRouteInfo({ distance: result.distance, duration: result.duration, usedOSRM: result.usedOSRM });
+    setRouteGeometry(result.routeGeometry);
     setIsOptimized(true);
     setLocating(false);
   }, [selectedIds, fetchLocation]);
@@ -90,6 +95,7 @@ export function useRoute() {
     userLocation,
     locating,
     routeInfo,
+    routeGeometry,
     toggleShop,
     selectAll,
     clearSelection,

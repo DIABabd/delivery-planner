@@ -2,12 +2,15 @@ interface GeocodingResult {
   lat: number;
   lng: number;
   displayName: string;
+  district: string;
+  city: string;
 }
 
 export interface PlaceSuggestion {
   name: string;
   address: string;
   city: string;
+  district: string;
   lat: number;
   lng: number;
   displayName: string;
@@ -28,7 +31,7 @@ async function throttle() {
 export async function geocodeAddress(address: string, city: string): Promise<GeocodingResult | null> {
   await throttle();
   const query = encodeURIComponent(`${address}, ${city}, Germany`);
-  const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=de`;
+  const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=de&addressdetails=1`;
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'DeliveryRoutePlanner/1.0' },
@@ -39,10 +42,17 @@ export async function geocodeAddress(address: string, city: string): Promise<Geo
   const data = await res.json();
   if (!data.length) return null;
 
+  const item = data[0];
+  const addr = item.address as Record<string, string> | undefined;
+  const resultCity = addr?.city || addr?.town || addr?.village || addr?.municipality || extractCity(item.display_name);
+  const district = addr?.suburb || addr?.city_district || addr?.quarter || '';
+
   return {
-    lat: parseFloat(data[0].lat),
-    lng: parseFloat(data[0].lon),
-    displayName: data[0].display_name,
+    lat: parseFloat(item.lat),
+    lng: parseFloat(item.lon),
+    displayName: item.display_name,
+    district,
+    city: resultCity,
   };
 }
 
@@ -77,7 +87,7 @@ function extractAddress(displayName: string, shopName: string): string {
   return filtered.slice(0, 2).join(', ');
 }
 
-export async function searchShops(query: string): Promise<PlaceSuggestion[]> {
+export async function searchAddresses(query: string): Promise<PlaceSuggestion[]> {
   if (query.trim().length < 2) return [];
 
   await throttle();
@@ -98,6 +108,7 @@ export async function searchShops(query: string): Promise<PlaceSuggestion[]> {
   const suggestions: PlaceSuggestion[] = data.map((item: Record<string, unknown>) => {
     const addr = item.address as Record<string, string> | undefined;
     const city = addr?.city || addr?.town || addr?.village || addr?.municipality || extractCity(item.display_name as string);
+    const district = addr?.suburb || addr?.city_district || addr?.quarter || '';
     const road = addr?.road || '';
     const houseNumber = addr?.house_number || '';
     const streetAddr = road ? (houseNumber ? `${road} ${houseNumber}` : road) : extractAddress(item.display_name as string, item.name as string || '');
@@ -107,6 +118,7 @@ export async function searchShops(query: string): Promise<PlaceSuggestion[]> {
       name: (item.name as string) || '',
       address: streetAddr,
       city,
+      district,
       lat: parseFloat(item.lat as string),
       lng: parseFloat(item.lon as string),
       displayName: item.display_name as string,

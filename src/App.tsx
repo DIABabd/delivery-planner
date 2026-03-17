@@ -14,9 +14,9 @@ function App() {
   const [authed, setAuthed] = useState(isLoggedIn);
   const [tab, setTab] = useState<TabId>('shops');
   const [home, setHome] = useState<HomeAddress | null>(() => loadHome());
-  const { shops, cities, addShop, updateShop, deleteShop, replaceAll } = useShops();
+  const { shops, addShop, updateShop, deleteShop, replaceAll } = useShops();
   const {
-    selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo,
+    selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry,
     toggleShop, selectAll, clearSelection, optimize,
   } = useRoute();
 
@@ -42,6 +42,7 @@ function App() {
           routeStops={orderedStops}
           userLocation={userLocation}
           home={home}
+          routeGeometry={routeGeometry}
         />
       </div>
 
@@ -50,7 +51,6 @@ function App() {
           {tab === 'shops' && (
             <ShopsPage
               shops={shops}
-              cities={cities}
               home={home}
               onAdd={addShop}
               onUpdate={updateShop}
@@ -63,7 +63,6 @@ function App() {
           {tab === 'route' && (
             <RoutePage
               shops={shops}
-              cities={cities}
               selectedIds={selectedIds}
               orderedStops={orderedStops}
               isOptimized={isOptimized}

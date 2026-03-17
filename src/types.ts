@@ -3,6 +3,7 @@ export interface Shop {
   name: string;
   address: string;
   city: string;
+  district: string;
   notes: string;
   lat: number | null;
   lng: number | null;

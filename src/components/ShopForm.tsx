@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Shop } from '../types';
-import { geocodeAddress, searchShops, type PlaceSuggestion } from '../utils/geocode';
+import { geocodeAddress, searchAddresses, type PlaceSuggestion } from '../utils/geocode';
 
 interface Props {
   shop?: Shop | null;
-  onSave: (data: { name: string; address: string; city: string; notes: string; lat: number | null; lng: number | null }) => void;
+  onSave: (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => void;
   onClose: () => void;
 }
 
@@ -12,6 +12,7 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
   const [name, setName] = useState(shop?.name ?? '');
   const [address, setAddress] = useState(shop?.address ?? '');
   const [city, setCity] = useState(shop?.city ?? '');
+  const [district, setDistrict] = useState(shop?.district ?? '');
   const [notes, setNotes] = useState(shop?.notes ?? '');
   const [lat, setLat] = useState<number | null>(shop?.lat ?? null);
   const [lng, setLng] = useState<number | null>(shop?.lng ?? null);
@@ -32,7 +33,7 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
     }
     setSearching(true);
     try {
-      const results = await searchShops(query);
+      const results = await searchAddresses(query);
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
     } catch {
@@ -41,17 +42,22 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
     setSearching(false);
   }, []);
 
-  const handleNameChange = (value: string) => {
-    setName(value);
+  const handleAddressChange = (value: string) => {
+    setAddress(value);
+    // Clear coordinates when address changes manually
+    setLat(null);
+    setLng(null);
+    setDistrict('');
+    setCity('');
     // Debounce search
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => doSearch(value), 600);
   };
 
   const selectSuggestion = (s: PlaceSuggestion) => {
-    setName(s.name || name);
     setAddress(s.address);
     setCity(s.city);
+    setDistrict(s.district);
     setLat(s.lat);
     setLng(s.lng);
     setSuggestions([]);
@@ -70,14 +76,16 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
   }, []);
 
   const handleGeocode = async () => {
-    if (!address || !city) return;
+    if (!address) return;
     setGeocoding(true);
     setGeocodeError('');
     try {
-      const result = await geocodeAddress(address, city);
+      const result = await geocodeAddress(address, city || 'Bremen');
       if (result) {
         setLat(result.lat);
         setLng(result.lng);
+        if (result.city) setCity(result.city);
+        if (result.district) setDistrict(result.district);
       } else {
         setGeocodeError('Address not found. You can still save without location.');
       }
@@ -89,8 +97,8 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !city.trim()) return;
-    onSave({ name: name.trim(), address: address.trim(), city: city.trim(), notes: notes.trim(), lat, lng });
+    if (!address.trim()) return;
+    onSave({ name: name.trim(), address: address.trim(), city: city.trim(), district: district.trim(), notes: notes.trim(), lat, lng });
   };
 
   return (
@@ -105,13 +113,22 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          {/* Shop name with autocomplete */}
+          <input
+            type="text"
+            placeholder="Shop Name (optional)"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoComplete="off"
+          />
+
+          {/* Address with autocomplete */}
           <div className="relative" ref={suggestionsRef}>
             <input
               type="text"
-              placeholder="Shop Name *"
-              value={name}
-              onChange={e => handleNameChange(e.target.value)}
+              placeholder="Address *"
+              value={address}
+              onChange={e => handleAddressChange(e.target.value)}
               onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
@@ -138,8 +155,10 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
                         </span>
                       )}
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{s.name || 'Unnamed'}</p>
-                        <p className="text-xs text-gray-500 truncate">{s.address}{s.city ? `, ${s.city}` : ''}</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">{s.address}</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {s.district ? `${s.district}, ` : ''}{s.city}
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -148,21 +167,23 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
             )}
           </div>
 
-          <input
-            type="text"
-            placeholder="Address"
-            value={address}
-            onChange={e => setAddress(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="text"
-            placeholder="City *"
-            value={city}
-            onChange={e => setCity(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="City"
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="District"
+              value={district}
+              onChange={e => setDistrict(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
           <textarea
             placeholder="Notes (optional)"
             value={notes}
@@ -175,7 +196,7 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
             <button
               type="button"
               onClick={handleGeocode}
-              disabled={geocoding || !address || !city}
+              disabled={geocoding || !address}
               className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50"
             >
               {geocoding ? 'Finding...' : 'Find Location'}

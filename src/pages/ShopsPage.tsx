@@ -9,7 +9,6 @@ import { exportData, importData } from '../utils/storage';
 
 interface Props {
   shops: Shop[];
-  cities: string[];
   home: HomeAddress | null;
   onAdd: (data: Omit<Shop, 'id' | 'createdAt'>) => void;
   onUpdate: (id: string, data: Partial<Shop>) => void;
@@ -19,16 +18,21 @@ interface Props {
   onLogout: () => void;
 }
 
-export function ShopsPage({ shops, cities, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout }: Props) {
+export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout }: Props) {
   const [cityFilter, setCityFilter] = useState('');
+  const [districtFilter, setDistrictFilter] = useState('');
   const [editing, setEditing] = useState<Shop | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHomeForm, setShowHomeForm] = useState(false);
 
-  const filtered = cityFilter ? shops.filter(s => s.city === cityFilter) : shops;
+  const filtered = shops.filter(s => {
+    if (cityFilter && s.city !== cityFilter) return false;
+    if (districtFilter && s.district !== districtFilter) return false;
+    return true;
+  });
 
-  const handleSave = (data: { name: string; address: string; city: string; notes: string; lat: number | null; lng: number | null }) => {
+  const handleSave = (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => {
     if (editing) {
       onUpdate(editing.id, data);
     } else {
@@ -116,7 +120,13 @@ export function ShopsPage({ shops, cities, home, onAdd, onUpdate, onDelete, onRe
       )}
 
       <div className="flex-1 overflow-y-auto px-4 py-3 pb-4 space-y-3">
-        <CityFilter cities={cities} selected={cityFilter} onChange={setCityFilter} />
+        <CityFilter
+          shops={shops}
+          cityFilter={cityFilter}
+          districtFilter={districtFilter}
+          onCityChange={setCityFilter}
+          onDistrictChange={setDistrictFilter}
+        />
         <ShopList
           shops={filtered}
           onEdit={shop => { setEditing(shop); setShowForm(true); }}

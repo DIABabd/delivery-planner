@@ -5,7 +5,6 @@ import { RouteStopList } from '../components/RouteStopList';
 
 interface Props {
   shops: Shop[];
-  cities: string[];
   selectedIds: Set<string>;
   orderedStops: Shop[];
   isOptimized: boolean;
@@ -20,7 +19,7 @@ interface Props {
 }
 
 export function RoutePage({
-  shops, cities, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
+  shops, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
   onToggle, onSelectAll, onClear, onOptimize,
 }: Props) {
   const hasSelection = selectedIds.size > 0;
@@ -35,7 +34,6 @@ export function RoutePage({
       <div className="flex-1 overflow-y-auto px-4 py-3 pb-4 space-y-4">
         <RoutePlanner
           shops={shops}
-          cities={cities}
           selectedIds={selectedIds}
           onToggle={onToggle}
           onSelectAll={onSelectAll}
