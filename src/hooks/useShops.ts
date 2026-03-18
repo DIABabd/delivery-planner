@@ -1,37 +1,44 @@
 import { useState, useCallback } from 'react';
 import type { Shop } from '../types';
-import { loadShops, saveShops } from '../utils/storage';
+import { loadShops, saveShop, updateShopInDb, deleteShopFromDb } from '../utils/storage';
 
 export function useShops() {
-  const [shops, setShops] = useState<Shop[]>(() => loadShops());
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const persist = useCallback((updated: Shop[]) => {
-    setShops(updated);
-    saveShops(updated);
+  const addShop = useCallback(async (shop: Omit<Shop, 'id' | 'createdAt'>) => {
+    const newShop = await saveShop(shop);
+    if (newShop) {
+      setShops(prev => [...prev, newShop]);
+    }
+    return newShop;
   }, []);
 
-  const addShop = useCallback((shop: Omit<Shop, 'id' | 'createdAt'>) => {
-    const newShop: Shop = {
-      ...shop,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    persist([...loadShops(), newShop]);
-    return newShop;
-  }, [persist]);
+  const updateShop = useCallback(async (id: string, updates: Partial<Shop>) => {
+    const ok = await updateShopInDb(id, updates);
+    if (ok) {
+      setShops(prev => prev.map(s => (s.id === id ? { ...s, ...updates } : s)));
+    }
+  }, []);
 
-  const updateShop = useCallback((id: string, updates: Partial<Shop>) => {
-    const current = loadShops();
-    persist(current.map(s => (s.id === id ? { ...s, ...updates } : s)));
-  }, [persist]);
+  const deleteShop = useCallback(async (id: string) => {
+    const ok = await deleteShopFromDb(id);
+    if (ok) {
+      setShops(prev => prev.filter(s => s.id !== id));
+    }
+  }, []);
 
-  const deleteShop = useCallback((id: string) => {
-    persist(loadShops().filter(s => s.id !== id));
-  }, [persist]);
+  const replaceAll = useCallback(async () => {
+    const data = await loadShops();
+    setShops(data);
+  }, []);
 
-  const replaceAll = useCallback((newShops: Shop[]) => {
-    persist(newShops);
-  }, [persist]);
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const data = await loadShops();
+    setShops(data);
+    setLoading(false);
+  }, []);
 
-  return { shops, addShop, updateShop, deleteShop, replaceAll };
+  return { shops, loading, addShop, updateShop, deleteShop, replaceAll, reload };
 }

@@ -1,27 +1,29 @@
-const VALID_HASH = 'b79e885b8738701289d506b9bb5d0fb808929214ee55238f9c81df3caa746f9d';
-const SESSION_KEY = 'dp_auth';
+import { supabase } from './supabase';
 
-async function sha256(text: string): Promise<string> {
-  const encoded = new TextEncoder().encode(text);
-  const buffer = await crypto.subtle.digest('SHA-256', encoded);
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+// Map username to email format for Supabase Auth (which requires email)
+function usernameToEmail(username: string): string {
+  return `${username.toLowerCase().trim()}@deliveryplanner.app`;
 }
 
 export async function login(username: string, password: string): Promise<boolean> {
-  const hash = await sha256(username.toLowerCase().trim() + ':' + password);
-  if (hash === VALID_HASH) {
-    localStorage.setItem(SESSION_KEY, hash);
-    return true;
-  }
-  return false;
+  const { error } = await supabase.auth.signInWithPassword({
+    email: usernameToEmail(username),
+    password,
+  });
+  return !error;
 }
 
-export function isLoggedIn(): boolean {
-  return localStorage.getItem(SESSION_KEY) === VALID_HASH;
+export async function isLoggedIn(): Promise<boolean> {
+  const { data } = await supabase.auth.getSession();
+  return !!data.session;
 }
 
-export function logout() {
-  localStorage.removeItem(SESSION_KEY);
+export async function logout() {
+  await supabase.auth.signOut();
+}
+
+export function onAuthChange(callback: (loggedIn: boolean) => void) {
+  return supabase.auth.onAuthStateChange((_event, session) => {
+    callback(!!session);
+  });
 }

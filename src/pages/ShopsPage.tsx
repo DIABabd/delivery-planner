@@ -42,8 +42,8 @@ export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll
     setEditing(null);
   };
 
-  const handleExport = () => {
-    const json = exportData();
+  const handleExport = async () => {
+    const json = await exportData();
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -62,7 +62,7 @@ export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll
       if (!file) return;
       try {
         const text = await file.text();
-        const data = importData(text);
+        const data = await importData(text);
         onReplaceAll(data.shops);
         alert(`Imported ${data.shops.length} shops`);
       } catch {

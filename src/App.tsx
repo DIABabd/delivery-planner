@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { TabId } from './types';
 import { useShops } from './hooks/useShops';
 import { useRoute } from './hooks/useRoute';
-import { isLoggedIn, logout } from './utils/auth';
+import { logout, onAuthChange } from './utils/auth';
 import { loadHome, saveHome, type HomeAddress } from './utils/storage';
 import { LoginScreen } from './components/LoginScreen';
 import { BottomNav } from './components/BottomNav';
@@ -11,27 +11,48 @@ import { ShopsPage } from './pages/ShopsPage';
 import { RoutePage } from './pages/RoutePage';
 
 function App() {
-  const [authed, setAuthed] = useState(isLoggedIn);
+  const [authed, setAuthed] = useState<boolean | null>(null); // null = checking
   const [tab, setTab] = useState<TabId>('shops');
-  const [home, setHome] = useState<HomeAddress | null>(() => loadHome());
-  const { shops, addShop, updateShop, deleteShop, replaceAll } = useShops();
+  const [home, setHome] = useState<HomeAddress | null>(null);
+  const { shops, addShop, updateShop, deleteShop, replaceAll, reload } = useShops();
   const {
     selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry,
     toggleShop, selectAll, clearSelection, optimize, reorderStops,
   } = useRoute();
 
-  if (!authed) {
-    return <LoginScreen onLogin={() => setAuthed(true)} />;
+  // Listen for auth changes — this handles both initial session check and login/logout
+  useEffect(() => {
+    const { data } = onAuthChange((loggedIn) => {
+      setAuthed(loggedIn);
+      if (loggedIn) {
+        reload();
+        loadHome().then(setHome);
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, [reload]);
+
+  // Show nothing while checking auth
+  if (authed === null) {
+    return (
+      <div className="h-dvh flex items-center justify-center bg-gray-50">
+        <div className="text-gray-400 text-sm">Loading...</div>
+      </div>
+    );
   }
 
-  const handleLogout = () => {
-    logout();
-    setAuthed(false);
+  if (!authed) {
+    return <LoginScreen onLogin={() => { /* onAuthChange will handle it */ }} />;
+  }
+
+  const handleLogout = async () => {
+    await logout();
+    // onAuthChange will set authed to false
   };
 
-  const handleHomeChange = (h: HomeAddress | null) => {
+  const handleHomeChange = async (h: HomeAddress | null) => {
     setHome(h);
-    saveHome(h);
+    await saveHome(h);
   };
 
   return (
