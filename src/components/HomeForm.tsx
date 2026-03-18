@@ -26,7 +26,7 @@ export function HomeForm({ home, onSave, onClose }: Props) {
         setLat(result.lat);
         setLng(result.lng);
       } else {
-        setError('Address not test found');
+        setError('Address not found');
       }
     } catch {
       setError('Geocoding failed');
