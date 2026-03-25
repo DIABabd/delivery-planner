@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import type { Shop } from '../types';
 import type { HomeAddress } from '../utils/storage';
 import { openSingleNavigation, openFullRoute } from '../utils/navigation';
@@ -23,6 +23,12 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
+  // Touch drag-and-drop state
+  const touchDragItem = useRef<number | null>(null);
+  const rowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null);
+  const [touchOverIndex, setTouchOverIndex] = useState<number | null>(null);
+
   if (stops.length === 0) return null;
 
   const validStops = stops.filter(s => s.lat != null && s.lng != null);
@@ -38,6 +44,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
     if (i < stops.length - 1 && onReorder) onReorder(i, i + 1);
   };
 
+  // Desktop drag handlers
   const handleDragStart = (i: number) => {
     dragItem.current = i;
   };
@@ -51,6 +58,48 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
     dragItem.current = null;
     dragOverItem.current = null;
   };
+
+  // Touch drag handlers (for mobile)
+  const handleTouchStart = (i: number, e: React.TouchEvent) => {
+    touchDragItem.current = i;
+    setTouchDragIndex(i);
+    setTouchOverIndex(null);
+    e.preventDefault();
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchDragItem.current === null) return;
+    e.preventDefault();
+
+    const touch = e.touches[0];
+    // Find which row the finger is over
+    for (const [index, el] of rowRefs.current.entries()) {
+      const rect = el.getBoundingClientRect();
+      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        if (index !== touchOverIndex) {
+          setTouchOverIndex(index);
+        }
+        break;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchDragItem.current !== null && touchOverIndex !== null && touchDragItem.current !== touchOverIndex && onReorder) {
+      onReorder(touchDragItem.current, touchOverIndex);
+    }
+    touchDragItem.current = null;
+    setTouchDragIndex(null);
+    setTouchOverIndex(null);
+  };
+
+  const setRowRef = useCallback((index: number, el: HTMLDivElement | null) => {
+    if (el) {
+      rowRefs.current.set(index, el);
+    } else {
+      rowRefs.current.delete(index);
+    }
+  }, []);
 
   return (
     <div className="space-y-2">
@@ -89,16 +138,31 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
         {stops.map((stop, i) => (
           <div
             key={stop.id}
+            ref={el => setRowRef(i, el)}
             draggable={!!onReorder}
             onDragStart={() => handleDragStart(i)}
             onDragEnter={() => handleDragEnter(i)}
             onDragEnd={handleDragEnd}
             onDragOver={e => e.preventDefault()}
-            className="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 cursor-grab active:cursor-grabbing select-none"
+            onTouchMove={onReorder ? handleTouchMove : undefined}
+            onTouchEnd={onReorder ? handleTouchEnd : undefined}
+            className={`flex items-center gap-2 p-3 bg-white rounded-lg border cursor-grab active:cursor-grabbing select-none transition-all duration-150 ${
+              touchDragIndex === i
+                ? 'opacity-50 scale-95 border-blue-400 bg-blue-50'
+                : touchOverIndex === i && touchDragIndex !== null
+                  ? 'border-blue-500 border-2 bg-blue-50'
+                  : 'border-gray-200'
+            }`}
           >
             {/* Drag handle */}
             {onReorder && (
-              <span className="text-gray-300 text-sm shrink-0" style={{ cursor: 'grab' }}>⠿</span>
+              <span
+                className="text-gray-400 text-lg shrink-0 px-1"
+                style={{ cursor: 'grab', touchAction: 'none' }}
+                onTouchStart={e => handleTouchStart(i, e)}
+              >
+                ⠿
+              </span>
             )}
 
             <span className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
