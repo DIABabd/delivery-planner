@@ -180,7 +180,8 @@ export async function loadGroups(): Promise<ShopGroup[]> {
     .select('*')
     .order('created_at', { ascending: true });
 
-  if (error || !data) return [];
+  if (error) { console.error('loadGroups error:', error); return []; }
+  if (!data) return [];
 
   return data.map(row => ({
     id: row.id,
@@ -192,7 +193,7 @@ export async function loadGroups(): Promise<ShopGroup[]> {
 
 export async function saveGroup(name: string, shopIds: string[]): Promise<ShopGroup | null> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) { console.error('saveGroup: no user'); return null; }
 
   const { data, error } = await supabase
     .from('groups')
@@ -200,7 +201,8 @@ export async function saveGroup(name: string, shopIds: string[]): Promise<ShopGr
     .select()
     .single();
 
-  if (error || !data) return null;
+  if (error) { console.error('saveGroup error:', error); return null; }
+  if (!data) return null;
 
   return {
     id: data.id,
