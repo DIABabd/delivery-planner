@@ -30,7 +30,15 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
   const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null);
   const [touchOverIndex, setTouchOverIndex] = useState<number | null>(null);
 
-  // Document-level touch handlers for drag (touch events stay on the originating element)
+  // Track completed stops
+  const [doneSet, setDoneSet] = useState<Set<string>>(new Set());
+
+  // Reset done set when stops change (new optimization)
+  useEffect(() => {
+    setDoneSet(new Set());
+  }, [stops.length]);
+
+  // Document-level touch handlers for drag
   useEffect(() => {
     const handleTouchMove = (e: TouchEvent) => {
       if (touchDragRef.current === null) return;
@@ -81,9 +89,6 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
   const validStops = stops.filter(s => s.lat != null && s.lng != null);
   const userLoc = userLocation ? { lat: userLocation[0], lng: userLocation[1] } : null;
 
-  const navStops = validStops.map(s => ({ lat: s.lat!, lng: s.lng! }));
-  if (home) navStops.push({ lat: home.lat, lng: home.lng });
-
   // Desktop drag handlers
   const handleDragStart = (i: number) => {
     dragItem.current = i;
@@ -99,7 +104,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
     dragOverItem.current = null;
   };
 
-  // Touch drag start (on the handle)
+  // Touch drag start
   const handleTouchStart = (i: number, e: React.TouchEvent) => {
     touchDragRef.current = i;
     touchOverRef.current = null;
@@ -115,6 +120,43 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
       rowRefs.current.delete(index);
     }
   }, []);
+
+  const toggleDone = (id: string) => {
+    setDoneSet(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Remaining stops (not done) for navigation
+  const remainingStops = validStops.filter(s => !doneSet.has(s.id));
+  const remainingNav = remainingStops.map(s => ({ lat: s.lat!, lng: s.lng! }));
+  if (home) remainingNav.push({ lat: home.lat, lng: home.lng });
+
+  // Google Maps supports origin + destination + 9 waypoints = 11 stops max per batch
+  const MAX_BATCH = 10; // destination + 9 waypoints
+  const needsBatching = remainingStops.length > MAX_BATCH;
+  const currentBatchStops = remainingStops.slice(0, MAX_BATCH);
+  const currentBatchNav = currentBatchStops.map(s => ({ lat: s.lat!, lng: s.lng! }));
+  // Only add home if this is the last batch
+  if (home && !needsBatching) currentBatchNav.push({ lat: home.lat, lng: home.lng });
+
+  const doneCount = doneSet.size;
+  const totalCount = stops.length;
+
+  const handleNavigateBatch = () => {
+    openFullRoute(currentBatchNav, userLoc);
+  };
+
+  const markBatchDone = () => {
+    setDoneSet(prev => {
+      const next = new Set(prev);
+      currentBatchStops.forEach(s => next.add(s.id));
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-2">
@@ -135,12 +177,49 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
             </p>
           )}
         </div>
-        {navStops.length >= 1 && (
+      </div>
+
+      {/* Progress + Navigation */}
+      {doneCount > 0 && (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-green-500 h-2 rounded-full transition-all"
+              style={{ width: `${(doneCount / totalCount) * 100}%` }}
+            />
+          </div>
+          <span className="text-xs text-gray-500 shrink-0">{doneCount}/{totalCount} done</span>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        {remainingStops.length > 0 && (
           <button
-            onClick={() => openFullRoute(navStops, userLoc)}
-            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 shrink-0"
+            onClick={handleNavigateBatch}
+            className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
           >
-            Navigate All
+            {needsBatching
+              ? `Navigate Next ${currentBatchStops.length} Stops`
+              : doneCount > 0
+                ? `Navigate Remaining ${remainingStops.length}`
+                : 'Navigate All'
+            }
+          </button>
+        )}
+        {needsBatching && (
+          <button
+            onClick={markBatchDone}
+            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+          >
+            Mark Batch Done
+          </button>
+        )}
+        {doneCount > 0 && (
+          <button
+            onClick={() => setDoneSet(new Set())}
+            className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200"
+          >
+            Reset
           </button>
         )}
       </div>
@@ -150,61 +229,77 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
       )}
 
       <div className="space-y-1">
-        {stops.map((stop, i) => (
-          <div
-            key={stop.id}
-            ref={el => setRowRef(i, el)}
-            draggable={!!onReorder}
-            onDragStart={() => handleDragStart(i)}
-            onDragEnter={() => handleDragEnter(i)}
-            onDragEnd={handleDragEnd}
-            onDragOver={e => e.preventDefault()}
-            className={`flex items-center gap-2 p-3 bg-white rounded-lg border select-none transition-all duration-150 ${
-              touchDragIndex === i
-                ? 'opacity-50 scale-95 border-blue-400 bg-blue-50 shadow-lg'
-                : touchOverIndex === i && touchDragIndex !== null
-                  ? 'border-blue-500 border-2 bg-blue-50'
-                  : 'border-gray-200'
-            }`}
-          >
-            {/* Drag handle - large touch target */}
-            {onReorder && (
-              <div
-                className="flex items-center justify-center w-10 h-12 shrink-0 rounded-md bg-gray-100 active:bg-gray-200"
-                style={{ touchAction: 'none', cursor: 'grab' }}
-                onTouchStart={e => handleTouchStart(i, e)}
-              >
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-gray-400">
-                  <circle cx="7" cy="4" r="1.5" fill="currentColor" />
-                  <circle cx="13" cy="4" r="1.5" fill="currentColor" />
-                  <circle cx="7" cy="10" r="1.5" fill="currentColor" />
-                  <circle cx="13" cy="10" r="1.5" fill="currentColor" />
-                  <circle cx="7" cy="16" r="1.5" fill="currentColor" />
-                  <circle cx="13" cy="16" r="1.5" fill="currentColor" />
-                </svg>
-              </div>
-            )}
+        {stops.map((stop, i) => {
+          const isDone = doneSet.has(stop.id);
+          return (
+            <div
+              key={stop.id}
+              ref={el => setRowRef(i, el)}
+              draggable={!!onReorder}
+              onDragStart={() => handleDragStart(i)}
+              onDragEnter={() => handleDragEnter(i)}
+              onDragEnd={handleDragEnd}
+              onDragOver={e => e.preventDefault()}
+              className={`flex items-center gap-2 p-3 rounded-lg border select-none transition-all duration-150 ${
+                isDone
+                  ? 'bg-green-50 border-green-200 opacity-60'
+                  : touchDragIndex === i
+                    ? 'opacity-50 scale-95 border-blue-400 bg-blue-50 shadow-lg'
+                    : touchOverIndex === i && touchDragIndex !== null
+                      ? 'border-blue-500 border-2 bg-blue-50'
+                      : 'bg-white border-gray-200'
+              }`}
+            >
+              {/* Drag handle */}
+              {onReorder && (
+                <div
+                  className="flex items-center justify-center w-10 h-12 shrink-0 rounded-md bg-gray-100 active:bg-gray-200"
+                  style={{ touchAction: 'none', cursor: 'grab' }}
+                  onTouchStart={e => handleTouchStart(i, e)}
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-gray-400">
+                    <circle cx="7" cy="4" r="1.5" fill="currentColor" />
+                    <circle cx="13" cy="4" r="1.5" fill="currentColor" />
+                    <circle cx="7" cy="10" r="1.5" fill="currentColor" />
+                    <circle cx="13" cy="10" r="1.5" fill="currentColor" />
+                    <circle cx="7" cy="16" r="1.5" fill="currentColor" />
+                    <circle cx="13" cy="16" r="1.5" fill="currentColor" />
+                  </svg>
+                </div>
+              )}
 
-            <span className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-              {i + 1}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-gray-900 truncate">{stop.name || stop.address}</p>
-              <p className="text-xs text-gray-500 truncate">
-                {stop.name ? `${stop.address}, ` : ''}{stop.district ? `${stop.district}, ` : ''}{stop.city}
-              </p>
-            </div>
-
-            {stop.lat != null && (
+              {/* Done checkbox */}
               <button
-                onClick={() => openSingleNavigation(stop.lat!, stop.lng!)}
-                className="px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 shrink-0"
+                onClick={() => toggleDone(stop.id)}
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
+                  isDone
+                    ? 'bg-green-500 text-white'
+                    : 'bg-blue-600 text-white'
+                }`}
               >
-                Go
+                {isDone ? '✓' : i + 1}
               </button>
-            )}
-          </div>
-        ))}
+
+              <div className="flex-1 min-w-0">
+                <p className={`font-medium text-sm truncate ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                  {stop.name || stop.address}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {stop.name ? `${stop.address}, ` : ''}{stop.district ? `${stop.district}, ` : ''}{stop.city}
+                </p>
+              </div>
+
+              {stop.lat != null && (
+                <button
+                  onClick={() => openSingleNavigation(stop.lat!, stop.lng!)}
+                  className="px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 shrink-0"
+                >
+                  Go
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         {/* Home as final stop */}
         {home && (
