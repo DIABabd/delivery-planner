@@ -65,11 +65,17 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
     setSaving(false);
   };
 
-  const handleOverwriteGroup = async (group: ShopGroup) => {
+  const handleUpdateGroup = async (group: ShopGroup) => {
     if (selectedIds.size === 0) return;
     const ok = await onUpdateGroup(group.id, { shopIds: Array.from(selectedIds) });
     if (ok) setActiveGroupId(group.id);
   };
+
+  // Check if active group selection has been modified
+  const activeGroup = groups.find(g => g.id === activeGroupId);
+  const groupModified = activeGroup
+    ? activeGroup.shopIds.length !== selectedIds.size || activeGroup.shopIds.some(id => !selectedIds.has(id))
+    : false;
 
   const handleDeleteGroup = async (id: string) => {
     await onDeleteGroup(id);
@@ -133,13 +139,13 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
                   {group.name}
                   <span className="text-xs opacity-60 ml-1">({group.shopIds.length})</span>
                 </button>
-                {activeGroupId === group.id && selectedIds.size > 0 && (
+                {activeGroupId === group.id && groupModified && selectedIds.size > 0 && (
                   <button
-                    onClick={() => handleOverwriteGroup(group)}
+                    onClick={() => handleUpdateGroup(group)}
                     title="Update group with current selection"
-                    className="px-1 text-blue-600 hover:text-blue-800 text-xs"
+                    className="px-2 py-0.5 bg-blue-600 text-white rounded text-xs font-medium"
                   >
-                    Save
+                    Update
                   </button>
                 )}
                 <button
@@ -198,7 +204,7 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
             <input
               type="checkbox"
               checked={selectedIds.has(shop.id)}
-              onChange={() => { onToggle(shop.id); setActiveGroupId(null); }}
+              onChange={() => onToggle(shop.id)}
               className="w-5 h-5 rounded accent-blue-600 shrink-0"
             />
             <div className="min-w-0">
