@@ -201,7 +201,7 @@ export async function saveGroup(name: string, shopIds: string[]): Promise<ShopGr
     .select()
     .single();
 
-  if (error) { console.error('saveGroup error:', error); return null; }
+  if (error) { console.error('saveGroup error:', error); alert('Supabase error: ' + error.message + ' | code: ' + error.code); return null; }
   if (!data) return null;
 
   return {

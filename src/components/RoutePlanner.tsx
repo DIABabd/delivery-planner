@@ -41,14 +41,23 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
   };
 
   const handleSaveNewGroup = async () => {
-    if (!newGroupName.trim() || selectedIds.size === 0) return;
+    const name = newGroupName.trim();
+    if (!name) { alert('Please enter a group name'); return; }
+    if (selectedIds.size === 0) { alert('No shops selected'); return; }
     setSaving(true);
-    const group = await onSaveGroup(newGroupName.trim(), Array.from(selectedIds));
-    if (group) {
-      setActiveGroupId(group.id);
+    try {
+      const ids = Array.from(selectedIds);
+      const group = await onSaveGroup(name, ids);
+      if (group) {
+        setActiveGroupId(group.id);
+        setNewGroupName('');
+        setShowSaveGroup(false);
+      } else {
+        alert('Failed to save group. Check browser console for details.');
+      }
+    } catch (err) {
+      alert('Error saving group: ' + (err instanceof Error ? err.message : String(err)));
     }
-    setNewGroupName('');
-    setShowSaveGroup(false);
     setSaving(false);
   };
 
