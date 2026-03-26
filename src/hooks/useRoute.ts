@@ -18,19 +18,23 @@ export function useRoute() {
       else next.add(id);
       return next;
     });
-    setIsOptimized(false);
-    setOrderedStops([]);
-    setRouteInfo(null);
-    setRouteGeometry(null);
-  }, []);
+    // Only clear route if not currently optimized (i.e. still in selection phase)
+    // This preserves the route when adding shops mid-delivery
+    if (!isOptimized) {
+      setOrderedStops([]);
+      setRouteInfo(null);
+      setRouteGeometry(null);
+    }
+  }, [isOptimized]);
 
   const selectAll = useCallback((ids: string[]) => {
     setSelectedIds(new Set(ids));
-    setIsOptimized(false);
-    setOrderedStops([]);
-    setRouteInfo(null);
-    setRouteGeometry(null);
-  }, []);
+    if (!isOptimized) {
+      setOrderedStops([]);
+      setRouteInfo(null);
+      setRouteGeometry(null);
+    }
+  }, [isOptimized]);
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
