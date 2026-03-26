@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import type { Shop } from '../types';
 import type { HomeAddress } from '../utils/storage';
 import { openSingleNavigation, openFullRoute } from '../utils/navigation';
@@ -24,10 +24,57 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
   const dragOverItem = useRef<number | null>(null);
 
   // Touch drag-and-drop state
-  const touchDragItem = useRef<number | null>(null);
+  const touchDragRef = useRef<number | null>(null);
+  const touchOverRef = useRef<number | null>(null);
   const rowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null);
   const [touchOverIndex, setTouchOverIndex] = useState<number | null>(null);
+
+  // Document-level touch handlers for drag (touch events stay on the originating element)
+  useEffect(() => {
+    const handleTouchMove = (e: TouchEvent) => {
+      if (touchDragRef.current === null) return;
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      let found = false;
+      for (const [index, el] of rowRefs.current.entries()) {
+        const rect = el.getBoundingClientRect();
+        if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+          if (touchOverRef.current !== index) {
+            touchOverRef.current = index;
+            setTouchOverIndex(index);
+          }
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        touchOverRef.current = null;
+        setTouchOverIndex(null);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (touchDragRef.current !== null && touchOverRef.current !== null && touchDragRef.current !== touchOverRef.current && onReorder) {
+        onReorder(touchDragRef.current, touchOverRef.current);
+      }
+      touchDragRef.current = null;
+      touchOverRef.current = null;
+      setTouchDragIndex(null);
+      setTouchOverIndex(null);
+    };
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+    document.addEventListener('touchcancel', handleTouchEnd);
+
+    return () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [onReorder]);
 
   if (stops.length === 0) return null;
 
@@ -36,13 +83,6 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
 
   const navStops = validStops.map(s => ({ lat: s.lat!, lng: s.lng! }));
   if (home) navStops.push({ lat: home.lat, lng: home.lng });
-
-  const moveUp = (i: number) => {
-    if (i > 0 && onReorder) onReorder(i, i - 1);
-  };
-  const moveDown = (i: number) => {
-    if (i < stops.length - 1 && onReorder) onReorder(i, i + 1);
-  };
 
   // Desktop drag handlers
   const handleDragStart = (i: number) => {
@@ -59,38 +99,13 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
     dragOverItem.current = null;
   };
 
-  // Touch drag handlers (for mobile)
+  // Touch drag start (on the handle)
   const handleTouchStart = (i: number, e: React.TouchEvent) => {
-    touchDragItem.current = i;
+    touchDragRef.current = i;
+    touchOverRef.current = null;
     setTouchDragIndex(i);
     setTouchOverIndex(null);
     e.preventDefault();
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchDragItem.current === null) return;
-    e.preventDefault();
-
-    const touch = e.touches[0];
-    // Find which row the finger is over
-    for (const [index, el] of rowRefs.current.entries()) {
-      const rect = el.getBoundingClientRect();
-      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
-        if (index !== touchOverIndex) {
-          setTouchOverIndex(index);
-        }
-        break;
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (touchDragItem.current !== null && touchOverIndex !== null && touchDragItem.current !== touchOverIndex && onReorder) {
-      onReorder(touchDragItem.current, touchOverIndex);
-    }
-    touchDragItem.current = null;
-    setTouchDragIndex(null);
-    setTouchOverIndex(null);
   };
 
   const setRowRef = useCallback((index: number, el: HTMLDivElement | null) => {
@@ -131,7 +146,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
       </div>
 
       {onReorder && (
-        <p className="text-xs text-gray-400 text-center">Drag or use arrows to reorder stops</p>
+        <p className="text-xs text-gray-400 text-center">Hold and drag to reorder stops</p>
       )}
 
       <div className="space-y-1">
@@ -144,25 +159,30 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
             onDragEnter={() => handleDragEnter(i)}
             onDragEnd={handleDragEnd}
             onDragOver={e => e.preventDefault()}
-            onTouchMove={onReorder ? handleTouchMove : undefined}
-            onTouchEnd={onReorder ? handleTouchEnd : undefined}
-            className={`flex items-center gap-2 p-3 bg-white rounded-lg border cursor-grab active:cursor-grabbing select-none transition-all duration-150 ${
+            className={`flex items-center gap-2 p-3 bg-white rounded-lg border select-none transition-all duration-150 ${
               touchDragIndex === i
-                ? 'opacity-50 scale-95 border-blue-400 bg-blue-50'
+                ? 'opacity-50 scale-95 border-blue-400 bg-blue-50 shadow-lg'
                 : touchOverIndex === i && touchDragIndex !== null
                   ? 'border-blue-500 border-2 bg-blue-50'
                   : 'border-gray-200'
             }`}
           >
-            {/* Drag handle */}
+            {/* Drag handle - large touch target */}
             {onReorder && (
-              <span
-                className="text-gray-400 text-lg shrink-0 px-1"
-                style={{ cursor: 'grab', touchAction: 'none' }}
+              <div
+                className="flex items-center justify-center w-10 h-12 shrink-0 rounded-md bg-gray-100 active:bg-gray-200"
+                style={{ touchAction: 'none', cursor: 'grab' }}
                 onTouchStart={e => handleTouchStart(i, e)}
               >
-                ⠿
-              </span>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-gray-400">
+                  <circle cx="7" cy="4" r="1.5" fill="currentColor" />
+                  <circle cx="13" cy="4" r="1.5" fill="currentColor" />
+                  <circle cx="7" cy="10" r="1.5" fill="currentColor" />
+                  <circle cx="13" cy="10" r="1.5" fill="currentColor" />
+                  <circle cx="7" cy="16" r="1.5" fill="currentColor" />
+                  <circle cx="13" cy="16" r="1.5" fill="currentColor" />
+                </svg>
+              </div>
             )}
 
             <span className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
@@ -174,26 +194,6 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
                 {stop.name ? `${stop.address}, ` : ''}{stop.district ? `${stop.district}, ` : ''}{stop.city}
               </p>
             </div>
-
-            {/* Up/Down arrows */}
-            {onReorder && (
-              <div className="flex flex-col gap-0.5 shrink-0">
-                <button
-                  onClick={() => moveUp(i)}
-                  disabled={i === 0}
-                  className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-30 text-xs"
-                >
-                  ▲
-                </button>
-                <button
-                  onClick={() => moveDown(i)}
-                  disabled={i === stops.length - 1}
-                  className="w-6 h-6 flex items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-30 text-xs"
-                >
-                  ▼
-                </button>
-              </div>
-            )}
 
             {stop.lat != null && (
               <button
