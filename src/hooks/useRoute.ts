@@ -10,6 +10,7 @@ export function useRoute() {
   const [locating, setLocating] = useState(false);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number; usedOSRM: boolean } | null>(null);
   const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
 
   const toggleShop = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -42,6 +43,28 @@ export function useRoute() {
     setIsOptimized(false);
     setRouteInfo(null);
     setRouteGeometry(null);
+    setDoneIds(new Set());
+  }, []);
+
+  const toggleDone = useCallback((id: string) => {
+    setDoneIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const markBatchDone = useCallback((ids: string[]) => {
+    if (ids.length === 0) {
+      setDoneIds(new Set());
+      return;
+    }
+    setDoneIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
   }, []);
 
   const fetchLocation = useCallback((): Promise<[number, number] | null> => {
@@ -109,10 +132,13 @@ export function useRoute() {
     locating,
     routeInfo,
     routeGeometry,
+    doneIds,
     toggleShop,
     selectAll,
     clearSelection,
     optimize,
     reorderStops,
+    toggleDone,
+    markBatchDone,
   };
 }

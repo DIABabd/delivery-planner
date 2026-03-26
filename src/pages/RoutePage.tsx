@@ -18,6 +18,9 @@ interface Props {
   onClear: () => void;
   onOptimize: () => void;
   onReorder: (from: number, to: number) => void;
+  doneIds: Set<string>;
+  onToggleDone: (id: string) => void;
+  onMarkBatchDone: (ids: string[]) => void;
   onSaveGroup: (name: string, shopIds: string[]) => Promise<ShopGroup | null>;
   onUpdateGroup: (id: string, updates: { name?: string; shopIds?: string[] }) => Promise<boolean>;
   onDeleteGroup: (id: string) => Promise<boolean>;
@@ -26,6 +29,7 @@ interface Props {
 export function RoutePage({
   shops, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
   groups, onToggle, onSelectAll, onClear, onOptimize, onReorder,
+  doneIds, onToggleDone, onMarkBatchDone,
   onSaveGroup, onUpdateGroup, onDeleteGroup,
 }: Props) {
   const hasSelection = selectedIds.size > 0;
@@ -79,6 +83,9 @@ export function RoutePage({
             home={home}
             routeInfo={routeInfo}
             onReorder={onReorder}
+            doneIds={doneIds}
+            onToggleDone={onToggleDone}
+            onMarkBatchDone={onMarkBatchDone}
           />
         )}
       </div>

@@ -9,6 +9,9 @@ interface Props {
   home?: HomeAddress | null;
   routeInfo?: { distance: number; duration: number; usedOSRM: boolean } | null;
   onReorder?: (from: number, to: number) => void;
+  doneIds: Set<string>;
+  onToggleDone: (id: string) => void;
+  onMarkBatchDone: (ids: string[]) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -19,7 +22,7 @@ function formatDuration(seconds: number): string {
   return `${m} min`;
 }
 
-export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder }: Props) {
+export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder, doneIds, onToggleDone, onMarkBatchDone }: Props) {
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
@@ -30,27 +33,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
   const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null);
   const [touchOverIndex, setTouchOverIndex] = useState<number | null>(null);
 
-  // Track completed stops
-  const [doneSet, setDoneSet] = useState<Set<string>>(new Set());
-  const prevStopIdsRef = useRef<string>('');
-
-  // Only reset done set when it's a completely new route, not just adding a shop
-  useEffect(() => {
-    const currentIds = stops.map(s => s.id).sort().join(',');
-    const prevIds = prevStopIdsRef.current;
-    if (prevIds && currentIds !== prevIds) {
-      // Keep done marks for stops that still exist in the new route
-      setDoneSet(prev => {
-        const newStopIds = new Set(stops.map(s => s.id));
-        const kept = new Set<string>();
-        for (const id of prev) {
-          if (newStopIds.has(id)) kept.add(id);
-        }
-        return kept;
-      });
-    }
-    prevStopIdsRef.current = currentIds;
-  }, [stops]);
+  // doneIds, onToggleDone, onMarkBatchDone come from props (persisted in useRoute)
 
   // Document-level touch handlers for drag
   useEffect(() => {
@@ -135,17 +118,8 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
     }
   }, []);
 
-  const toggleDone = (id: string) => {
-    setDoneSet(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   // Remaining stops (not done) for navigation
-  const remainingStops = validStops.filter(s => !doneSet.has(s.id));
+  const remainingStops = validStops.filter(s => !doneIds.has(s.id));
   const remainingNav = remainingStops.map(s => ({ lat: s.lat!, lng: s.lng! }));
   if (home) remainingNav.push({ lat: home.lat, lng: home.lng });
 
@@ -157,19 +131,15 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
   // Only add home if this is the last batch
   if (home && !needsBatching) currentBatchNav.push({ lat: home.lat, lng: home.lng });
 
-  const doneCount = doneSet.size;
+  const doneCount = doneIds.size;
   const totalCount = stops.length;
 
   const handleNavigateBatch = () => {
     openFullRoute(currentBatchNav, userLoc);
   };
 
-  const markBatchDone = () => {
-    setDoneSet(prev => {
-      const next = new Set(prev);
-      currentBatchStops.forEach(s => next.add(s.id));
-      return next;
-    });
+  const handleMarkBatchDone = () => {
+    onMarkBatchDone(currentBatchStops.map(s => s.id));
   };
 
   return (
@@ -222,7 +192,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
         )}
         {needsBatching && (
           <button
-            onClick={markBatchDone}
+            onClick={handleMarkBatchDone}
             className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
           >
             Mark Batch Done
@@ -230,7 +200,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
         )}
         {doneCount > 0 && (
           <button
-            onClick={() => setDoneSet(new Set())}
+            onClick={() => onMarkBatchDone([])}
             className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200"
           >
             Reset
@@ -244,7 +214,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
 
       <div className="space-y-1">
         {stops.map((stop, i) => {
-          const isDone = doneSet.has(stop.id);
+          const isDone = doneIds.has(stop.id);
           return (
             <div
               key={stop.id}
@@ -284,7 +254,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
 
               {/* Done checkbox */}
               <button
-                onClick={() => toggleDone(stop.id)}
+                onClick={() => onToggleDone(stop.id)}
                 className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
                   isDone
                     ? 'bg-green-500 text-white'

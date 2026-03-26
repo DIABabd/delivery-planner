@@ -17,8 +17,8 @@ function App() {
   const [home, setHome] = useState<HomeAddress | null>(null);
   const { shops, addShop, updateShop, deleteShop, replaceAll, reload } = useShops();
   const {
-    selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry,
-    toggleShop, selectAll, clearSelection, optimize, reorderStops,
+    selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry, doneIds,
+    toggleShop, selectAll, clearSelection, optimize, reorderStops, toggleDone, markBatchDone,
   } = useRoute();
   const { groups, reload: reloadGroups, addGroup, updateGroup: updateGroupData, deleteGroup } = useGroups();
 
@@ -100,6 +100,9 @@ function App() {
               onClear={clearSelection}
               onOptimize={() => optimize(shops, home?.lat, home?.lng)}
               onReorder={reorderStops}
+              doneIds={doneIds}
+              onToggleDone={toggleDone}
+              onMarkBatchDone={markBatchDone}
               onSaveGroup={addGroup}
               onUpdateGroup={updateGroupData}
               onDeleteGroup={deleteGroup}
