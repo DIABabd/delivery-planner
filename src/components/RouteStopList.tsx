@@ -32,11 +32,25 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder 
 
   // Track completed stops
   const [doneSet, setDoneSet] = useState<Set<string>>(new Set());
+  const prevStopIdsRef = useRef<string>('');
 
-  // Reset done set when stops change (new optimization)
+  // Only reset done set when it's a completely new route, not just adding a shop
   useEffect(() => {
-    setDoneSet(new Set());
-  }, [stops.length]);
+    const currentIds = stops.map(s => s.id).sort().join(',');
+    const prevIds = prevStopIdsRef.current;
+    if (prevIds && currentIds !== prevIds) {
+      // Keep done marks for stops that still exist in the new route
+      setDoneSet(prev => {
+        const newStopIds = new Set(stops.map(s => s.id));
+        const kept = new Set<string>();
+        for (const id of prev) {
+          if (newStopIds.has(id)) kept.add(id);
+        }
+        return kept;
+      });
+    }
+    prevStopIdsRef.current = currentIds;
+  }, [stops]);
 
   // Document-level touch handlers for drag
   useEffect(() => {
