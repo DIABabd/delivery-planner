@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { TabId } from './types';
 import { useShops } from './hooks/useShops';
 import { useRoute } from './hooks/useRoute';
+import { useGroups } from './hooks/useGroups';
 import { logout, onAuthChange } from './utils/auth';
 import { loadHome, saveHome, type HomeAddress } from './utils/storage';
 import { LoginScreen } from './components/LoginScreen';
@@ -19,6 +20,7 @@ function App() {
     selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry,
     toggleShop, selectAll, clearSelection, optimize, reorderStops,
   } = useRoute();
+  const { groups, reload: reloadGroups, addGroup, updateGroup: updateGroupData, deleteGroup } = useGroups();
 
   // Listen for auth changes — this handles both initial session check and login/logout
   useEffect(() => {
@@ -26,11 +28,12 @@ function App() {
       setAuthed(loggedIn);
       if (loggedIn) {
         reload();
+        reloadGroups();
         loadHome().then(setHome);
       }
     });
     return () => data.subscription.unsubscribe();
-  }, [reload]);
+  }, [reload, reloadGroups]);
 
   // Show nothing while checking auth
   if (authed === null) {
@@ -91,11 +94,15 @@ function App() {
               userLocation={userLocation}
               home={home}
               routeInfo={routeInfo}
+              groups={groups}
               onToggle={toggleShop}
               onSelectAll={selectAll}
               onClear={clearSelection}
               onOptimize={() => optimize(shops, home?.lat, home?.lng)}
               onReorder={reorderStops}
+              onSaveGroup={addGroup}
+              onUpdateGroup={updateGroupData}
+              onDeleteGroup={deleteGroup}
             />
           )}
         </div>

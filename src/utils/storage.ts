@@ -1,4 +1,4 @@
-import type { Shop, DailyRoute } from '../types';
+import type { Shop, DailyRoute, ShopGroup } from '../types';
 import { supabase } from './supabase';
 
 export interface HomeAddress {
@@ -168,6 +168,66 @@ export async function saveRoute(route: {
     distance_km: route.distanceKm,
     duration_sec: route.durationSec,
   });
+
+  return !error;
+}
+
+// ── Groups ───────────────────────────────────────────────────
+
+export async function loadGroups(): Promise<ShopGroup[]> {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map(row => ({
+    id: row.id,
+    name: row.name,
+    shopIds: row.shop_ids ?? [],
+    createdAt: row.created_at,
+  }));
+}
+
+export async function saveGroup(name: string, shopIds: string[]): Promise<ShopGroup | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('groups')
+    .insert({ user_id: user.id, name, shop_ids: shopIds })
+    .select()
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    name: data.name,
+    shopIds: data.shop_ids ?? [],
+    createdAt: data.created_at,
+  };
+}
+
+export async function updateGroupInDb(id: string, updates: { name?: string; shopIds?: string[] }): Promise<boolean> {
+  const dbUpdates: Record<string, unknown> = {};
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.shopIds !== undefined) dbUpdates.shop_ids = updates.shopIds;
+
+  const { error } = await supabase
+    .from('groups')
+    .update(dbUpdates)
+    .eq('id', id);
+
+  return !error;
+}
+
+export async function deleteGroupFromDb(id: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('groups')
+    .delete()
+    .eq('id', id);
 
   return !error;
 }

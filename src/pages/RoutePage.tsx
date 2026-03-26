@@ -1,4 +1,4 @@
-import type { Shop } from '../types';
+import type { Shop, ShopGroup } from '../types';
 import type { HomeAddress } from '../utils/storage';
 import { RoutePlanner } from '../components/RoutePlanner';
 import { RouteStopList } from '../components/RouteStopList';
@@ -12,16 +12,21 @@ interface Props {
   userLocation: [number, number] | null;
   home: HomeAddress | null;
   routeInfo: { distance: number; duration: number; usedOSRM: boolean } | null;
+  groups: ShopGroup[];
   onToggle: (id: string) => void;
   onSelectAll: (ids: string[]) => void;
   onClear: () => void;
   onOptimize: () => void;
   onReorder: (from: number, to: number) => void;
+  onSaveGroup: (name: string, shopIds: string[]) => Promise<ShopGroup | null>;
+  onUpdateGroup: (id: string, updates: { name?: string; shopIds?: string[] }) => Promise<boolean>;
+  onDeleteGroup: (id: string) => Promise<boolean>;
 }
 
 export function RoutePage({
   shops, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
-  onToggle, onSelectAll, onClear, onOptimize, onReorder,
+  groups, onToggle, onSelectAll, onClear, onOptimize, onReorder,
+  onSaveGroup, onUpdateGroup, onDeleteGroup,
 }: Props) {
   const hasSelection = selectedIds.size > 0;
   const hasLocations = shops.filter(s => selectedIds.has(s.id) && s.lat != null).length >= 2;
@@ -36,9 +41,13 @@ export function RoutePage({
         <RoutePlanner
           shops={shops}
           selectedIds={selectedIds}
+          groups={groups}
           onToggle={onToggle}
           onSelectAll={onSelectAll}
           onClear={onClear}
+          onSaveGroup={onSaveGroup}
+          onUpdateGroup={onUpdateGroup}
+          onDeleteGroup={onDeleteGroup}
         />
 
         {hasSelection && (

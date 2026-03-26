@@ -16,4 +16,11 @@ export interface DailyRoute {
   optimized: boolean;
 }
 
+export interface ShopGroup {
+  id: string;
+  name: string;
+  shopIds: string[];
+  createdAt: string;
+}
+
 export type TabId = 'shops' | 'route';
