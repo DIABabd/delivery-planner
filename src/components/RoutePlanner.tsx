@@ -31,11 +31,15 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
   const allFilteredSelected = filtered.length > 0 && filtered.every(s => selectedIds.has(s.id));
 
   const handleLoadGroup = (group: ShopGroup) => {
-    // Filter to only shop IDs that still exist
+    if (activeGroupId === group.id) {
+      // Already active — deselect
+      onClear();
+      setActiveGroupId(null);
+      return;
+    }
     const validIds = group.shopIds.filter(id => shops.some(s => s.id === id));
     onSelectAll(validIds);
     setActiveGroupId(group.id);
-    // Clear city/district filters so all shops are visible
     setCityFilter('');
     setDistrictFilter('');
   };
