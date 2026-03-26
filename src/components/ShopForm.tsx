@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Shop } from '../types';
-import { geocodeAddress, searchAddresses, type PlaceSuggestion } from '../utils/geocode';
+import { geocodeAddress, reverseGeocode, searchAddresses, type PlaceSuggestion } from '../utils/geocode';
 
 interface Props {
   shop?: Shop | null;
+  useLocation?: boolean;
   onSave: (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => void;
   onClose: () => void;
 }
 
-export function ShopForm({ shop, onSave, onClose }: Props) {
+export function ShopForm({ shop, useLocation: autoLocate, onSave, onClose }: Props) {
   const [name, setName] = useState(shop?.name ?? '');
   const [address, setAddress] = useState(shop?.address ?? '');
   const [city, setCity] = useState(shop?.city ?? '');
@@ -74,6 +75,55 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const [locating, setLocating] = useState(false);
+  const autoLocateTriggered = useRef(false);
+
+  // Auto-trigger location when opened via GPS button
+  useEffect(() => {
+    if (autoLocate && !autoLocateTriggered.current) {
+      autoLocateTriggered.current = true;
+      handleUseLocation();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLocate]);
+
+  const handleUseLocation = () => {
+    if (!navigator.geolocation) {
+      setGeocodeError('Geolocation not supported by this browser.');
+      return;
+    }
+    setLocating(true);
+    setGeocodeError('');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const result = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+          if (result) {
+            setLat(result.lat);
+            setLng(result.lng);
+            if (result.address) setAddress(result.address);
+            if (result.city) setCity(result.city);
+            if (result.district) setDistrict(result.district);
+          } else {
+            setLat(pos.coords.latitude);
+            setLng(pos.coords.longitude);
+            setGeocodeError('Got location but could not find address. You can type it manually.');
+          }
+        } catch {
+          setLat(pos.coords.latitude);
+          setLng(pos.coords.longitude);
+          setGeocodeError('Got location but reverse geocoding failed.');
+        }
+        setLocating(false);
+      },
+      (err) => {
+        setGeocodeError(err.code === 1 ? 'Location permission denied.' : 'Could not get location.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const handleGeocode = async () => {
     if (!address) return;
@@ -192,7 +242,15 @@ export function ShopForm({ shop, onSave, onClose }: Props) {
             className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleUseLocation}
+              disabled={locating}
+              className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 disabled:opacity-50 font-medium"
+            >
+              {locating ? 'Locating...' : 'Use My Location'}
+            </button>
             <button
               type="button"
               onClick={handleGeocode}

@@ -25,6 +25,7 @@ export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHomeForm, setShowHomeForm] = useState(false);
+  const [quickAdd, setQuickAdd] = useState(false);
 
   const filtered = shops.filter(s => {
     if (cityFilter && s.city !== cityFilter) return false;
@@ -84,6 +85,13 @@ export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll
             +
           </button>
           <button
+            onClick={() => { setEditing(null); setShowForm(true); setQuickAdd(true); }}
+            className="w-8 h-8 bg-green-600 text-white rounded-full text-sm flex items-center justify-center hover:bg-green-700"
+            title="Add shop at my location"
+          >
+            GPS
+          </button>
+          <button
             onClick={() => setShowSettings(!showSettings)}
             className="text-gray-500 text-sm px-2 py-1"
           >
@@ -137,8 +145,9 @@ export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll
       {showForm && (
         <ShopForm
           shop={editing}
+          useLocation={quickAdd}
           onSave={handleSave}
-          onClose={() => { setShowForm(false); setEditing(null); }}
+          onClose={() => { setShowForm(false); setEditing(null); setQuickAdd(false); }}
         />
       )}
 

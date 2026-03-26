@@ -4,6 +4,7 @@ interface GeocodingResult {
   displayName: string;
   district: string;
   city: string;
+  address?: string;
 }
 
 export interface PlaceSuggestion {
@@ -26,6 +27,36 @@ async function throttle() {
     await new Promise(r => setTimeout(r, 1100 - elapsed));
   }
   lastRequestTime = Date.now();
+}
+
+export async function reverseGeocode(lat: number, lng: number): Promise<GeocodingResult | null> {
+  await throttle();
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'DeliveryRoutePlanner/1.0' },
+  });
+
+  if (!res.ok) return null;
+
+  const item = await res.json();
+  if (!item || item.error) return null;
+
+  const addr = item.address as Record<string, string> | undefined;
+  const road = addr?.road || '';
+  const houseNumber = addr?.house_number || '';
+  const streetAddr = road ? (houseNumber ? `${road} ${houseNumber}` : road) : '';
+  const resultCity = addr?.city || addr?.town || addr?.village || addr?.municipality || extractCity(item.display_name);
+  const district = addr?.suburb || addr?.city_district || addr?.quarter || '';
+
+  return {
+    lat,
+    lng,
+    displayName: item.display_name,
+    district,
+    city: resultCity,
+    address: streetAddr,
+  };
 }
 
 export async function geocodeAddress(address: string, city: string): Promise<GeocodingResult | null> {
