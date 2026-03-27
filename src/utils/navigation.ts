@@ -5,7 +5,7 @@ interface Stop {
 
 export function openSingleNavigation(lat: number, lng: number) {
   const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-  window.open(url, '_blank');
+  window.location.href = url;
 }
 
 export function openFullRoute(stops: Stop[], userLocation?: { lat: number; lng: number } | null) {
@@ -33,5 +33,5 @@ export function openFullRoute(stops: Stop[], userLocation?: { lat: number; lng: 
   const wpSlice = waypoints.slice(0, maxWaypoints);
   const wpStr = wpSlice.map(s => `${s.lat},${s.lng}`).join('|');
   const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${wpStr ? `&waypoints=${wpStr}` : ''}&travelmode=driving`;
-  window.open(url, '_blank');
+  window.location.href = url;
 }
