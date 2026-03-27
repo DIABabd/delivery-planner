@@ -18,7 +18,7 @@ function App() {
   const { shops, addShop, updateShop, deleteShop, replaceAll, reload } = useShops();
   const {
     selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry, doneIds,
-    toggleShop, selectAll, clearSelection, optimize, reorderStops, toggleDone, markBatchDone,
+    toggleShop, selectAll, addToSelection, removeFromSelection, clearSelection, optimize, reorderStops, toggleDone, markBatchDone,
   } = useRoute();
   const { groups, reload: reloadGroups, addGroup, updateGroup: updateGroupData, deleteGroup } = useGroups();
 
@@ -97,6 +97,8 @@ function App() {
               groups={groups}
               onToggle={toggleShop}
               onSelectAll={selectAll}
+              onAddToSelection={addToSelection}
+              onRemoveFromSelection={removeFromSelection}
               onClear={clearSelection}
               onOptimize={() => optimize(shops, home?.lat, home?.lng)}
               onReorder={reorderStops}

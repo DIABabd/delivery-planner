@@ -15,6 +15,8 @@ interface Props {
   groups: ShopGroup[];
   onToggle: (id: string) => void;
   onSelectAll: (ids: string[]) => void;
+  onAddToSelection: (ids: string[]) => void;
+  onRemoveFromSelection: (ids: string[]) => void;
   onClear: () => void;
   onOptimize: () => void;
   onReorder: (from: number, to: number) => void;
@@ -28,7 +30,7 @@ interface Props {
 
 export function RoutePage({
   shops, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
-  groups, onToggle, onSelectAll, onClear, onOptimize, onReorder,
+  groups, onToggle, onSelectAll, onAddToSelection, onRemoveFromSelection, onClear, onOptimize, onReorder,
   doneIds, onToggleDone, onMarkBatchDone,
   onSaveGroup, onUpdateGroup, onDeleteGroup,
 }: Props) {
@@ -48,6 +50,8 @@ export function RoutePage({
           groups={groups}
           onToggle={onToggle}
           onSelectAll={onSelectAll}
+          onAddToSelection={onAddToSelection}
+          onRemoveFromSelection={onRemoveFromSelection}
           onClear={onClear}
           onSaveGroup={onSaveGroup}
           onUpdateGroup={onUpdateGroup}

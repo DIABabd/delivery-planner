@@ -37,6 +37,32 @@ export function useRoute() {
     }
   }, [isOptimized]);
 
+  const addToSelection = useCallback((ids: string[]) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+    if (!isOptimized) {
+      setOrderedStops([]);
+      setRouteInfo(null);
+      setRouteGeometry(null);
+    }
+  }, [isOptimized]);
+
+  const removeFromSelection = useCallback((ids: string[]) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+    if (!isOptimized) {
+      setOrderedStops([]);
+      setRouteInfo(null);
+      setRouteGeometry(null);
+    }
+  }, [isOptimized]);
+
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
     setOrderedStops([]);
@@ -135,6 +161,8 @@ export function useRoute() {
     doneIds,
     toggleShop,
     selectAll,
+    addToSelection,
+    removeFromSelection,
     clearSelection,
     optimize,
     reorderStops,

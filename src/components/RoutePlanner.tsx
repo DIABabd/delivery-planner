@@ -8,16 +8,18 @@ interface Props {
   groups: ShopGroup[];
   onToggle: (id: string) => void;
   onSelectAll: (ids: string[]) => void;
+  onAddToSelection: (ids: string[]) => void;
+  onRemoveFromSelection: (ids: string[]) => void;
   onClear: () => void;
   onSaveGroup: (name: string, shopIds: string[]) => Promise<ShopGroup | null>;
   onUpdateGroup: (id: string, updates: { name?: string; shopIds?: string[] }) => Promise<boolean>;
   onDeleteGroup: (id: string) => Promise<boolean>;
 }
 
-export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll, onClear, onSaveGroup, onUpdateGroup, onDeleteGroup }: Props) {
+export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll, onAddToSelection, onRemoveFromSelection, onClear, onSaveGroup, onUpdateGroup, onDeleteGroup }: Props) {
   const [cityFilter, setCityFilter] = useState('');
   const [districtFilter, setDistrictFilter] = useState('');
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [activeGroupIds, setActiveGroupIds] = useState<Set<string>>(new Set());
   const [showSaveGroup, setShowSaveGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -31,15 +33,20 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
   const allFilteredSelected = filtered.length > 0 && filtered.every(s => selectedIds.has(s.id));
 
   const handleLoadGroup = (group: ShopGroup) => {
-    if (activeGroupId === group.id) {
-      // Already active — deselect
-      onClear();
-      setActiveGroupId(null);
-      return;
-    }
     const validIds = group.shopIds.filter(id => shops.some(s => s.id === id));
-    onSelectAll(validIds);
-    setActiveGroupId(group.id);
+    if (activeGroupIds.has(group.id)) {
+      // Already active — remove this group's shops and deactivate it
+      onRemoveFromSelection(validIds);
+      setActiveGroupIds(prev => {
+        const next = new Set(prev);
+        next.delete(group.id);
+        return next;
+      });
+    } else {
+      // Add this group's shops to the selection
+      onAddToSelection(validIds);
+      setActiveGroupIds(prev => new Set(prev).add(group.id));
+    }
     setCityFilter('');
     setDistrictFilter('');
   };
@@ -53,7 +60,7 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
       const ids = Array.from(selectedIds);
       const group = await onSaveGroup(name, ids);
       if (group) {
-        setActiveGroupId(group.id);
+        setActiveGroupIds(prev => new Set(prev).add(group.id));
         setNewGroupName('');
         setShowSaveGroup(false);
       } else {
@@ -68,18 +75,23 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
   const handleUpdateGroup = async (group: ShopGroup) => {
     if (selectedIds.size === 0) return;
     const ok = await onUpdateGroup(group.id, { shopIds: Array.from(selectedIds) });
-    if (ok) setActiveGroupId(group.id);
+    if (ok) setActiveGroupIds(prev => new Set(prev).add(group.id));
   };
 
-  // Check if active group selection has been modified
-  const activeGroup = groups.find(g => g.id === activeGroupId);
-  const groupModified = activeGroup
-    ? activeGroup.shopIds.length !== selectedIds.size || activeGroup.shopIds.some(id => !selectedIds.has(id))
-    : false;
+  // Check if any active group's selection has been modified
+  const isGroupModified = (group: ShopGroup) => {
+    if (!activeGroupIds.has(group.id)) return false;
+    return group.shopIds.some(id => !selectedIds.has(id)) ||
+           Array.from(selectedIds).some(id => !group.shopIds.includes(id));
+  };
 
   const handleDeleteGroup = async (id: string) => {
     await onDeleteGroup(id);
-    if (activeGroupId === id) setActiveGroupId(null);
+    setActiveGroupIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   return (
@@ -127,7 +139,7 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
               <div
                 key={group.id}
                 className={`flex items-center gap-1 rounded-lg border text-sm transition-colors ${
-                  activeGroupId === group.id
+                  activeGroupIds.has(group.id)
                     ? 'bg-blue-100 border-blue-300 text-blue-800'
                     : 'bg-white border-gray-200 text-gray-700'
                 }`}
@@ -139,7 +151,7 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
                   {group.name}
                   <span className="text-xs opacity-60 ml-1">({group.shopIds.length})</span>
                 </button>
-                {activeGroupId === group.id && groupModified && selectedIds.size > 0 && (
+                {activeGroupIds.has(group.id) && isGroupModified(group) && selectedIds.size > 0 && (
                   <button
                     onClick={() => handleUpdateGroup(group)}
                     title="Update group with current selection"
@@ -180,7 +192,7 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll
             } else {
               onSelectAll(filtered.map(s => s.id));
             }
-            setActiveGroupId(null);
+            setActiveGroupIds(new Set());
           }}
           className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs hover:bg-gray-200"
         >
