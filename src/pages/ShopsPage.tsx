@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import type { Shop } from '../types';
+import type { Shop, ShopGroup } from '../types';
 import type { HomeAddress } from '../utils/storage';
-import { CityFilter } from '../components/CityFilter';
-import { ShopList } from '../components/ShopList';
+import { ShopCard } from '../components/ShopCard';
 import { ShopForm } from '../components/ShopForm';
 import { HomeForm } from '../components/HomeForm';
 import { exportData, importData } from '../utils/storage';
 
 interface Props {
   shops: Shop[];
+  groups: ShopGroup[];
   home: HomeAddress | null;
   onAdd: (data: Omit<Shop, 'id' | 'createdAt'>) => void;
   onUpdate: (id: string, data: Partial<Shop>) => void;
@@ -18,20 +18,29 @@ interface Props {
   onLogout: () => void;
 }
 
-export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout }: Props) {
-  const [cityFilter, setCityFilter] = useState('');
-  const [districtFilter, setDistrictFilter] = useState('');
+const PREVIEW_COUNT = 3;
+
+export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout }: Props) {
   const [editing, setEditing] = useState<Shop | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHomeForm, setShowHomeForm] = useState(false);
   const [quickAdd, setQuickAdd] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  const filtered = shops.filter(s => {
-    if (cityFilter && s.city !== cityFilter) return false;
-    if (districtFilter && s.district !== districtFilter) return false;
-    return true;
-  });
+  const toggleExpand = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  // Find shops that belong to at least one group
+  const groupedShopIds = new Set<string>();
+  groups.forEach(g => g.shopIds.forEach(id => groupedShopIds.add(id)));
+  const ungroupedShops = shops.filter(s => !groupedShopIds.has(s.id));
 
   const handleSave = (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => {
     if (editing) {
@@ -72,6 +81,9 @@ export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll
     };
     input.click();
   };
+
+  const onEdit = (shop: Shop) => { setEditing(shop); setShowForm(true); };
+  const onDeleteShop = (id: string) => { if (confirm('Delete this shop?')) onDelete(id); };
 
   return (
     <div className="flex flex-col h-full">
@@ -127,25 +139,74 @@ export function ShopsPage({ shops, home, onAdd, onUpdate, onDelete, onReplaceAll
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-3 pb-4 space-y-3">
-        <CityFilter
-          shops={shops}
-          cityFilter={cityFilter}
-          districtFilter={districtFilter}
-          onCityChange={setCityFilter}
-          onDistrictChange={setDistrictFilter}
-        />
-        <ShopList
-          shops={filtered}
-          onEdit={shop => { setEditing(shop); setShowForm(true); }}
-          onDelete={id => { if (confirm('Delete this shop?')) onDelete(id); }}
-        />
+      <div className="flex-1 overflow-y-auto px-4 py-3 pb-4 space-y-4">
+        {/* Grouped shops - catalog style */}
+        {groups.map(group => {
+          const groupShops = group.shopIds
+            .map(id => shops.find(s => s.id === id))
+            .filter((s): s is Shop => !!s);
+          if (groupShops.length === 0) return null;
+
+          const isExpanded = expandedGroups.has(group.id);
+          const displayShops = isExpanded ? groupShops : groupShops.slice(0, PREVIEW_COUNT);
+          const hasMore = groupShops.length > PREVIEW_COUNT;
+
+          return (
+            <div key={group.id}>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-base font-bold text-gray-900">
+                  {group.name}
+                  <span className="text-sm font-normal text-gray-400 ml-2">({groupShops.length})</span>
+                </h2>
+                {hasMore && (
+                  <button
+                    onClick={() => toggleExpand(group.id)}
+                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-xs font-medium hover:bg-gray-300"
+                  >
+                    {isExpanded ? 'Show less' : 'See all'}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                {displayShops.map(shop => (
+                  <ShopCard key={shop.id} shop={shop} onEdit={onEdit} onDelete={onDeleteShop} />
+                ))}
+              </div>
+              <div className="border-b border-gray-200 mt-4" />
+            </div>
+          );
+        })}
+
+        {/* Ungrouped shops */}
+        {ungroupedShops.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-base font-bold text-gray-900">
+                All other shops
+                <span className="text-sm font-normal text-gray-400 ml-2">({ungroupedShops.length})</span>
+              </h2>
+            </div>
+            <div className="space-y-1.5">
+              {ungroupedShops.map(shop => (
+                <ShopCard key={shop.id} shop={shop} onEdit={onEdit} onDelete={onDeleteShop} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No shops at all */}
+        {shops.length === 0 && (
+          <p className="text-center text-gray-400 py-8 text-sm">
+            No shops yet. Tap + to add your first shop.
+          </p>
+        )}
       </div>
 
       {showForm && (
         <ShopForm
           shop={editing}
           useLocation={quickAdd}
+          existingShops={shops}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditing(null); setQuickAdd(false); }}
         />

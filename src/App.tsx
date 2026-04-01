@@ -75,6 +75,7 @@ function App() {
           {tab === 'shops' && (
             <ShopsPage
               shops={shops}
+              groups={groups}
               home={home}
               onAdd={addShop}
               onUpdate={updateShop}

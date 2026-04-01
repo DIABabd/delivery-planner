@@ -5,11 +5,12 @@ import { geocodeAddress, reverseGeocode, searchAddresses, type PlaceSuggestion }
 interface Props {
   shop?: Shop | null;
   useLocation?: boolean;
+  existingShops?: Shop[];
   onSave: (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => void;
   onClose: () => void;
 }
 
-export function ShopForm({ shop, useLocation: autoLocate, onSave, onClose }: Props) {
+export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], onSave, onClose }: Props) {
   const [name, setName] = useState(shop?.name ?? '');
   const [address, setAddress] = useState(shop?.address ?? '');
   const [city, setCity] = useState(shop?.city ?? '');
@@ -148,7 +149,14 @@ export function ShopForm({ shop, useLocation: autoLocate, onSave, onClose }: Pro
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!address.trim()) return;
-    onSave({ name: name.trim(), address: address.trim(), city: city.trim(), district: district.trim(), notes: notes.trim(), lat, lng });
+    const trimmedName = name.trim();
+    if (trimmedName && !shop) {
+      const duplicate = existingShops.find(s => s.name.toLowerCase() === trimmedName.toLowerCase());
+      if (duplicate) {
+        if (!confirm(`A shop named "${duplicate.name}" already exists. Do you still want to add it?`)) return;
+      }
+    }
+    onSave({ name: trimmedName, address: address.trim(), city: city.trim(), district: district.trim(), notes: notes.trim(), lat, lng });
   };
 
   return (
