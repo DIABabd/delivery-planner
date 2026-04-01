@@ -14,7 +14,6 @@ interface Props {
   routeInfo: { distance: number; duration: number; usedOSRM: boolean } | null;
   groups: ShopGroup[];
   onToggle: (id: string) => void;
-  onSelectAll: (ids: string[]) => void;
   onAddToSelection: (ids: string[]) => void;
   onRemoveFromSelection: (ids: string[]) => void;
   onClear: () => void;
@@ -24,15 +23,14 @@ interface Props {
   onToggleDone: (id: string) => void;
   onMarkBatchDone: (ids: string[]) => void;
   onSaveGroup: (name: string, shopIds: string[]) => Promise<ShopGroup | null>;
-  onUpdateGroup: (id: string, updates: { name?: string; shopIds?: string[] }) => Promise<boolean>;
   onDeleteGroup: (id: string) => Promise<boolean>;
 }
 
 export function RoutePage({
   shops, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
-  groups, onToggle, onSelectAll, onAddToSelection, onRemoveFromSelection, onClear, onOptimize, onReorder,
+  groups, onToggle, onAddToSelection, onRemoveFromSelection, onClear, onOptimize, onReorder,
   doneIds, onToggleDone, onMarkBatchDone,
-  onSaveGroup, onUpdateGroup, onDeleteGroup,
+  onSaveGroup, onDeleteGroup,
 }: Props) {
   const hasSelection = selectedIds.size > 0;
   const hasLocations = shops.filter(s => selectedIds.has(s.id) && s.lat != null).length >= 2;
@@ -49,12 +47,10 @@ export function RoutePage({
           selectedIds={selectedIds}
           groups={groups}
           onToggle={onToggle}
-          onSelectAll={onSelectAll}
           onAddToSelection={onAddToSelection}
           onRemoveFromSelection={onRemoveFromSelection}
           onClear={onClear}
           onSaveGroup={onSaveGroup}
-          onUpdateGroup={onUpdateGroup}
           onDeleteGroup={onDeleteGroup}
         />
 

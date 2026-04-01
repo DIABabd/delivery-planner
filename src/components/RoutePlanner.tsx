@@ -6,18 +6,16 @@ interface Props {
   selectedIds: Set<string>;
   groups: ShopGroup[];
   onToggle: (id: string) => void;
-  onSelectAll: (ids: string[]) => void;
   onAddToSelection: (ids: string[]) => void;
   onRemoveFromSelection: (ids: string[]) => void;
   onClear: () => void;
   onSaveGroup: (name: string, shopIds: string[]) => Promise<ShopGroup | null>;
-  onUpdateGroup: (id: string, updates: { name?: string; shopIds?: string[] }) => Promise<boolean>;
   onDeleteGroup: (id: string) => Promise<boolean>;
 }
 
 const PREVIEW_COUNT = 3;
 
-export function RoutePlanner({ shops, selectedIds, groups, onToggle, onSelectAll, onAddToSelection, onRemoveFromSelection, onClear, onSaveGroup, onUpdateGroup, onDeleteGroup }: Props) {
+export function RoutePlanner({ shops, selectedIds, groups, onToggle, onAddToSelection, onRemoveFromSelection, onClear, onSaveGroup, onDeleteGroup }: Props) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [showSaveGroup, setShowSaveGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
