@@ -18,9 +18,9 @@ function App() {
   const { shops, addShop, updateShop, deleteShop, replaceAll, reload } = useShops();
   const {
     selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry, doneIds,
-    toggleShop, selectAll, addToSelection, removeFromSelection, clearSelection, optimize, reorderStops, toggleDone, markBatchDone,
+    toggleShop, addToSelection, removeFromSelection, clearSelection, optimize, reorderStops, toggleDone, markBatchDone,
   } = useRoute();
-  const { groups, reload: reloadGroups, addGroup, updateGroup: updateGroupData, deleteGroup } = useGroups();
+  const { groups, reload: reloadGroups, addGroup, deleteGroup } = useGroups();
 
   // Listen for auth changes — this handles both initial session check and login/logout
   useEffect(() => {
@@ -107,7 +107,6 @@ function App() {
               onToggleDone={toggleDone}
               onMarkBatchDone={markBatchDone}
               onSaveGroup={addGroup}
-              onUpdateGroup={updateGroupData}
               onDeleteGroup={deleteGroup}
             />
           )}
