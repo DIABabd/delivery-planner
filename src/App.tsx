@@ -97,7 +97,7 @@ function App() {
               routeInfo={routeInfo}
               groups={groups}
               onToggle={toggleShop}
-              onSelectAll={selectAll}
+
               onAddToSelection={addToSelection}
               onRemoveFromSelection={removeFromSelection}
               onClear={clearSelection}
