@@ -5,6 +5,7 @@ import { ShopCard } from '../components/ShopCard';
 import { ShopForm } from '../components/ShopForm';
 import { HomeForm } from '../components/HomeForm';
 import { GroupShopPicker } from '../components/GroupShopPicker';
+import { RouteHistory } from '../components/RouteHistory';
 import { exportData, importData } from '../utils/storage';
 
 interface Props {
@@ -33,6 +34,7 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
   const [pickerGroupId, setPickerGroupId] = useState<string | null>(null);
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   const toggleExpand = (groupId: string) => {
     setExpandedGroups(prev => {
@@ -133,6 +135,9 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
               className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50"
             >
               {home ? 'Edit Home' : 'Set Home'}
+            </button>
+            <button onClick={() => setShowHistory(true)} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50">
+              History
             </button>
             <button onClick={handleExport} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:bg-gray-50">
               Export Data
@@ -288,6 +293,10 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
           onSave={h => { onHomeChange(h); setShowHomeForm(false); }}
           onClose={() => setShowHomeForm(false)}
         />
+      )}
+
+      {showHistory && (
+        <RouteHistory onClose={() => setShowHistory(false)} />
       )}
 
       {pickerGroup && (

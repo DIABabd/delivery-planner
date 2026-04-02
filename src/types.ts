@@ -23,4 +23,15 @@ export interface ShopGroup {
   createdAt: string;
 }
 
+export interface RouteHistoryEntry {
+  id: string;
+  completedAt: string;
+  shopIds: string[];
+  shopNames: string[];
+  totalShops: number;
+  doneShops: number;
+  distanceKm: number | null;
+  durationMin: number | null;
+}
+
 export type TabId = 'shops' | 'route';

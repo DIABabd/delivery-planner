@@ -19,6 +19,7 @@ function App() {
   const {
     selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry, doneIds,
     toggleShop, addToSelection, removeFromSelection, clearSelection, optimize, reorderStops, toggleDone, markBatchDone,
+    restoreStops,
   } = useRoute();
   const { groups, reload: reloadGroups, addGroup, updateGroup, deleteGroup } = useGroups();
 
@@ -34,6 +35,11 @@ function App() {
     });
     return () => data.subscription.unsubscribe();
   }, [reload, reloadGroups]);
+
+  // Restore ordered stops once shops are loaded from DB
+  useEffect(() => {
+    if (shops.length > 0) restoreStops(shops);
+  }, [shops, restoreStops]);
 
   // Show nothing while checking auth
   if (authed === null) {

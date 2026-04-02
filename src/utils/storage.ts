@@ -1,4 +1,4 @@
-import type { Shop, DailyRoute, ShopGroup } from '../types';
+import type { Shop, DailyRoute, ShopGroup, RouteHistoryEntry } from '../types';
 import { supabase } from './supabase';
 
 export interface HomeAddress {
@@ -231,6 +231,57 @@ export async function deleteGroupFromDb(id: string): Promise<boolean> {
     .delete()
     .eq('id', id);
 
+  return !error;
+}
+
+// ── Route History ───────────────────────────────────────────
+
+export async function loadHistory(): Promise<RouteHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from('route_history')
+    .select('*')
+    .order('completed_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map(row => ({
+    id: row.id,
+    completedAt: row.completed_at,
+    shopIds: row.shop_ids ?? [],
+    shopNames: row.shop_names ?? [],
+    totalShops: row.total_shops,
+    doneShops: row.done_shops,
+    distanceKm: row.distance_km,
+    durationMin: row.duration_min,
+  }));
+}
+
+export async function saveHistory(entry: {
+  shopIds: string[];
+  shopNames: string[];
+  totalShops: number;
+  doneShops: number;
+  distanceKm: number | null;
+  durationMin: number | null;
+}): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { error } = await supabase.from('route_history').insert({
+    user_id: user.id,
+    shop_ids: entry.shopIds,
+    shop_names: entry.shopNames,
+    total_shops: entry.totalShops,
+    done_shops: entry.doneShops,
+    distance_km: entry.distanceKm,
+    duration_min: entry.durationMin,
+  });
+
+  return !error;
+}
+
+export async function deleteHistoryEntry(id: string): Promise<boolean> {
+  const { error } = await supabase.from('route_history').delete().eq('id', id);
   return !error;
 }
 

@@ -1,16 +1,83 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Shop } from '../types';
 import { optimizeRoute, type OptimizeResult } from '../utils/routeOptimizer';
 
+const STORAGE_KEY = 'route-progress';
+
+interface SavedState {
+  selectedIds: string[];
+  orderedStopIds: string[];
+  isOptimized: boolean;
+  doneIds: string[];
+  routeInfo: { distance: number; duration: number; usedOSRM: boolean } | null;
+  routeGeometry: [number, number][] | null;
+  savedAt: number;
+}
+
+function saveState(state: SavedState) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+}
+
+function loadState(): SavedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SavedState;
+    // Expire after 24 hours
+    if (Date.now() - parsed.savedAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch { return null; }
+}
+
 export function useRoute() {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const saved = useRef(loadState());
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(saved.current?.selectedIds ?? [])
+  );
   const [orderedStops, setOrderedStops] = useState<Shop[]>([]);
-  const [isOptimized, setIsOptimized] = useState(false);
+  const [isOptimized, setIsOptimized] = useState(saved.current?.isOptimized ?? false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locating, setLocating] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number; usedOSRM: boolean } | null>(null);
-  const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null);
-  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number; usedOSRM: boolean } | null>(
+    saved.current?.routeInfo ?? null
+  );
+  const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(
+    saved.current?.routeGeometry ?? null
+  );
+  const [doneIds, setDoneIds] = useState<Set<string>>(
+    () => new Set(saved.current?.doneIds ?? [])
+  );
+
+  // Restore ordered stops once shops are available
+  const [pendingStopIds] = useState<string[]>(saved.current?.orderedStopIds ?? []);
+  const stopsRestoredRef = useRef(false);
+
+  const restoreStops = useCallback((allShops: Shop[]) => {
+    if (stopsRestoredRef.current || pendingStopIds.length === 0) return;
+    const shopMap = new Map(allShops.map(s => [s.id, s]));
+    const restored = pendingStopIds.map(id => shopMap.get(id)).filter((s): s is Shop => !!s);
+    if (restored.length > 0) {
+      setOrderedStops(restored);
+      stopsRestoredRef.current = true;
+    }
+  }, [pendingStopIds]);
+
+  // Auto-save on every meaningful change
+  useEffect(() => {
+    saveState({
+      selectedIds: Array.from(selectedIds),
+      orderedStopIds: orderedStops.map(s => s.id),
+      isOptimized,
+      doneIds: Array.from(doneIds),
+      routeInfo,
+      routeGeometry,
+      savedAt: Date.now(),
+    });
+  }, [selectedIds, orderedStops, isOptimized, doneIds, routeInfo, routeGeometry]);
 
   const toggleShop = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -19,8 +86,6 @@ export function useRoute() {
       else next.add(id);
       return next;
     });
-    // Only clear route if not currently optimized (i.e. still in selection phase)
-    // This preserves the route when adding shops mid-delivery
     if (!isOptimized) {
       setOrderedStops([]);
       setRouteInfo(null);
@@ -70,6 +135,7 @@ export function useRoute() {
     setRouteInfo(null);
     setRouteGeometry(null);
     setDoneIds(new Set());
+    localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   const toggleDone = useCallback((id: string) => {
@@ -168,5 +234,6 @@ export function useRoute() {
     reorderStops,
     toggleDone,
     markBatchDone,
+    restoreStops,
   };
 }

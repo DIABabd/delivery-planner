@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { Shop, ShopGroup } from '../types';
 import type { HomeAddress } from '../utils/storage';
+import { saveHistory } from '../utils/storage';
 import { RoutePlanner } from '../components/RoutePlanner';
 import { RouteStopList } from '../components/RouteStopList';
 
@@ -33,8 +35,25 @@ export function RoutePage({
   doneIds, onToggleDone, onMarkBatchDone,
   onSaveGroup, onUpdateGroup, onDeleteGroup,
 }: Props) {
+  const [finishing, setFinishing] = useState(false);
+
   const hasSelection = selectedIds.size > 0;
   const hasLocations = shops.filter(s => selectedIds.has(s.id) && s.lat != null).length >= 2;
+
+  const handleFinishRoute = async () => {
+    if (!isOptimized) return;
+    setFinishing(true);
+    await saveHistory({
+      shopIds: orderedStops.map(s => s.id),
+      shopNames: orderedStops.map(s => s.name || s.address),
+      totalShops: orderedStops.length,
+      doneShops: orderedStops.filter(s => doneIds.has(s.id)).length,
+      distanceKm: routeInfo?.distance ?? null,
+      durationMin: routeInfo?.duration ? routeInfo.duration / 60 : null,
+    });
+    setFinishing(false);
+    onClear();
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -79,16 +98,26 @@ export function RoutePage({
         )}
 
         {isOptimized && (
-          <RouteStopList
-            stops={orderedStops}
-            userLocation={userLocation}
-            home={home}
-            routeInfo={routeInfo}
-            onReorder={onReorder}
-            doneIds={doneIds}
-            onToggleDone={onToggleDone}
-            onMarkBatchDone={onMarkBatchDone}
-          />
+          <>
+            <RouteStopList
+              stops={orderedStops}
+              userLocation={userLocation}
+              home={home}
+              routeInfo={routeInfo}
+              onReorder={onReorder}
+              doneIds={doneIds}
+              onToggleDone={onToggleDone}
+              onMarkBatchDone={onMarkBatchDone}
+            />
+
+            <button
+              onClick={handleFinishRoute}
+              disabled={finishing}
+              className="w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium text-sm hover:bg-gray-700 disabled:opacity-50 transition-colors"
+            >
+              {finishing ? 'Saving...' : 'Finish Route & Save to History'}
+            </button>
+          </>
         )}
       </div>
     </div>
