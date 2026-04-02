@@ -20,7 +20,7 @@ function App() {
     selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry, doneIds,
     toggleShop, addToSelection, removeFromSelection, clearSelection, optimize, reorderStops, toggleDone, markBatchDone,
   } = useRoute();
-  const { groups, reload: reloadGroups, addGroup, deleteGroup } = useGroups();
+  const { groups, reload: reloadGroups, addGroup, updateGroup, deleteGroup } = useGroups();
 
   // Listen for auth changes — this handles both initial session check and login/logout
   useEffect(() => {
@@ -83,6 +83,7 @@ function App() {
               onReplaceAll={replaceAll}
               onHomeChange={handleHomeChange}
               onLogout={handleLogout}
+              onUpdateGroup={updateGroup}
             />
           )}
           {tab === 'route' && (
@@ -107,6 +108,7 @@ function App() {
               onToggleDone={toggleDone}
               onMarkBatchDone={markBatchDone}
               onSaveGroup={addGroup}
+              onUpdateGroup={updateGroup}
               onDeleteGroup={deleteGroup}
             />
           )}

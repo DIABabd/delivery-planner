@@ -10,14 +10,16 @@ interface Props {
   onRemoveFromSelection: (ids: string[]) => void;
   onClear: () => void;
   onSaveGroup: (name: string, shopIds: string[]) => Promise<ShopGroup | null>;
+  onUpdateGroup: (id: string, updates: { shopIds?: string[] }) => Promise<boolean>;
   onDeleteGroup: (id: string) => Promise<boolean>;
 }
 
 const PREVIEW_COUNT = 3;
 
-export function RoutePlanner({ shops, selectedIds, groups, onToggle, onAddToSelection, onRemoveFromSelection, onClear, onSaveGroup, onDeleteGroup }: Props) {
+export function RoutePlanner({ shops, selectedIds, groups, onToggle, onAddToSelection, onRemoveFromSelection, onClear, onSaveGroup, onUpdateGroup, onDeleteGroup }: Props) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [showSaveGroup, setShowSaveGroup] = useState(false);
+  const [showAddToGroup, setShowAddToGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -52,6 +54,20 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onAddToSele
     } catch (err) {
       alert('Error saving group: ' + (err instanceof Error ? err.message : String(err)));
     }
+    setSaving(false);
+  };
+
+  const handleAddToExistingGroup = async (group: ShopGroup) => {
+    if (selectedIds.size === 0) return;
+    setSaving(true);
+    const newIds = Array.from(selectedIds).filter(id => !group.shopIds.includes(id));
+    if (newIds.length === 0) {
+      alert('All selected shops are already in this group.');
+      setSaving(false);
+      return;
+    }
+    await onUpdateGroup(group.id, { shopIds: [...group.shopIds, ...newIds] });
+    setShowAddToGroup(false);
     setSaving(false);
   };
 
@@ -117,8 +133,16 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onAddToSele
               >
                 Clear
               </button>
+              {groups.length > 0 && (
+                <button
+                  onClick={() => { setShowAddToGroup(!showAddToGroup); setShowSaveGroup(false); }}
+                  className="text-xs text-green-600 font-medium"
+                >
+                  {showAddToGroup ? 'Cancel' : 'Add to Group'}
+                </button>
+              )}
               <button
-                onClick={() => setShowSaveGroup(!showSaveGroup)}
+                onClick={() => { setShowSaveGroup(!showSaveGroup); setShowAddToGroup(false); }}
                 className="text-xs text-blue-600 font-medium"
               >
                 {showSaveGroup ? 'Cancel' : 'Save as Group'}
@@ -147,6 +171,24 @@ export function RoutePlanner({ shops, selectedIds, groups, onToggle, onAddToSele
           >
             Save
           </button>
+        </div>
+      )}
+
+      {/* Add to existing group */}
+      {showAddToGroup && (
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-2 space-y-1">
+          <p className="text-xs text-gray-500 px-1 pb-1">Pick a group to add {selectedIds.size} shop{selectedIds.size !== 1 ? 's' : ''} to:</p>
+          {groups.map(group => (
+            <button
+              key={group.id}
+              onClick={() => handleAddToExistingGroup(group)}
+              disabled={saving}
+              className="w-full text-left px-3 py-2 bg-white rounded-lg border border-gray-200 text-sm hover:bg-blue-50 hover:border-blue-200 transition-colors disabled:opacity-50"
+            >
+              <span className="font-medium text-gray-900">{group.name}</span>
+              <span className="text-gray-400 text-xs ml-2">({group.shopIds.length} shops)</span>
+            </button>
+          ))}
         </div>
       )}
 

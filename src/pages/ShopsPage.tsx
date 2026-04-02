@@ -16,17 +16,21 @@ interface Props {
   onReplaceAll: (shops: Shop[]) => void;
   onHomeChange: (home: HomeAddress | null) => void;
   onLogout: () => void;
+  onUpdateGroup: (id: string, updates: { shopIds?: string[] }) => Promise<boolean>;
 }
 
 const PREVIEW_COUNT = 3;
 
-export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout }: Props) {
+export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout, onUpdateGroup }: Props) {
   const [editing, setEditing] = useState<Shop | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHomeForm, setShowHomeForm] = useState(false);
   const [quickAdd, setQuickAdd] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
+  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
+  const [pickerSaving, setPickerSaving] = useState(false);
 
   const toggleExpand = (groupId: string) => {
     setExpandedGroups(prev => {
@@ -35,6 +39,27 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
       else next.add(groupId);
       return next;
     });
+  };
+
+  const openGroupPicker = (groupId: string) => {
+    setAddingToGroupId(groupId);
+    setPickerSelected(new Set());
+  };
+
+  const closeGroupPicker = () => {
+    setAddingToGroupId(null);
+    setPickerSelected(new Set());
+  };
+
+  const handleAddShopsToGroup = async () => {
+    if (!addingToGroupId || pickerSelected.size === 0) return;
+    const group = groups.find(g => g.id === addingToGroupId);
+    if (!group) return;
+    setPickerSaving(true);
+    const newShopIds = [...group.shopIds, ...Array.from(pickerSelected).filter(id => !group.shopIds.includes(id))];
+    await onUpdateGroup(addingToGroupId, { shopIds: newShopIds });
+    setPickerSaving(false);
+    closeGroupPicker();
   };
 
   // Find shops that belong to at least one group
@@ -151,6 +176,8 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
           const displayShops = isExpanded ? groupShops : groupShops.slice(0, PREVIEW_COUNT);
           const hasMore = groupShops.length > PREVIEW_COUNT;
 
+          const shopsNotInGroup = shops.filter(s => !group.shopIds.includes(s.id));
+
           return (
             <div key={group.id}>
               <div className="flex items-center justify-between mb-2">
@@ -158,14 +185,25 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
                   {group.name}
                   <span className="text-sm font-normal text-gray-400 ml-2">({groupShops.length})</span>
                 </h2>
-                {hasMore && (
-                  <button
-                    onClick={() => toggleExpand(group.id)}
-                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-xs font-medium hover:bg-gray-300"
-                  >
-                    {isExpanded ? 'Show less' : 'See all'}
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {shopsNotInGroup.length > 0 && (
+                    <button
+                      onClick={() => openGroupPicker(group.id)}
+                      className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-sm font-bold flex items-center justify-center hover:bg-blue-200"
+                      title="Add shops to this group"
+                    >
+                      +
+                    </button>
+                  )}
+                  {hasMore && (
+                    <button
+                      onClick={() => toggleExpand(group.id)}
+                      className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-xs font-medium hover:bg-gray-300"
+                    >
+                      {isExpanded ? 'Show less' : 'See all'}
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="space-y-1.5">
                 {displayShops.map(shop => (
@@ -219,6 +257,64 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
           onClose={() => setShowHomeForm(false)}
         />
       )}
+
+      {addingToGroupId && (() => {
+        const group = groups.find(g => g.id === addingToGroupId);
+        const shopsNotInGroup = shops.filter(s => !group?.shopIds.includes(s.id));
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-end z-50" onClick={closeGroupPicker}>
+            <div className="bg-white w-full rounded-t-2xl max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <h3 className="font-bold text-gray-900">Add shops to "{group?.name}"</h3>
+                <button onClick={closeGroupPicker} className="text-gray-400 text-xl leading-none">×</button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
+                {shopsNotInGroup.length === 0 ? (
+                  <p className="text-center text-gray-400 py-6 text-sm">All shops are already in this group.</p>
+                ) : (
+                  shopsNotInGroup.map(shop => (
+                    <label
+                      key={shop.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        pickerSelected.has(shop.id) ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={pickerSelected.has(shop.id)}
+                        onChange={() => {
+                          setPickerSelected(prev => {
+                            const next = new Set(prev);
+                            if (next.has(shop.id)) next.delete(shop.id);
+                            else next.add(shop.id);
+                            return next;
+                          });
+                        }}
+                        className="w-5 h-5 rounded accent-blue-600 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm text-gray-900 truncate">{shop.name || shop.address}</p>
+                        <p className="text-xs text-gray-500 truncate">{shop.name ? shop.address : ''}{shop.district ? ` · ${shop.district}` : ''}</p>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+              {shopsNotInGroup.length > 0 && (
+                <div className="px-4 py-3 border-t border-gray-200">
+                  <button
+                    onClick={handleAddShopsToGroup}
+                    disabled={pickerSelected.size === 0 || pickerSaving}
+                    className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {pickerSaving ? 'Adding...' : `Add ${pickerSelected.size > 0 ? pickerSelected.size : ''} shop${pickerSelected.size !== 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
