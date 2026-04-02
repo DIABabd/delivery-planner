@@ -29,8 +29,8 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
   const [quickAdd, setQuickAdd] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
-  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
-  const [pickerSaving, setPickerSaving] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [savingShopIds, setSavingShopIds] = useState<Set<string>>(new Set());
 
   const toggleExpand = (groupId: string) => {
     setExpandedGroups(prev => {
@@ -43,23 +43,26 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
 
   const openGroupPicker = (groupId: string) => {
     setAddingToGroupId(groupId);
-    setPickerSelected(new Set());
+    setPickerSearch('');
   };
 
   const closeGroupPicker = () => {
     setAddingToGroupId(null);
-    setPickerSelected(new Set());
+    setPickerSearch('');
+    setSavingShopIds(new Set());
   };
 
-  const handleAddShopsToGroup = async () => {
-    if (!addingToGroupId || pickerSelected.size === 0) return;
+  const handleAddShopToGroup = async (shopId: string) => {
+    if (!addingToGroupId) return;
     const group = groups.find(g => g.id === addingToGroupId);
-    if (!group) return;
-    setPickerSaving(true);
-    const newShopIds = [...group.shopIds, ...Array.from(pickerSelected).filter(id => !group.shopIds.includes(id))];
-    await onUpdateGroup(addingToGroupId, { shopIds: newShopIds });
-    setPickerSaving(false);
-    closeGroupPicker();
+    if (!group || group.shopIds.includes(shopId)) return;
+    setSavingShopIds(prev => new Set(prev).add(shopId));
+    await onUpdateGroup(addingToGroupId, { shopIds: [...group.shopIds, shopId] });
+    setSavingShopIds(prev => {
+      const next = new Set(prev);
+      next.delete(shopId);
+      return next;
+    });
   };
 
   // Find shops that belong to at least one group
@@ -175,8 +178,7 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
           const isExpanded = expandedGroups.has(group.id);
           const displayShops = isExpanded ? groupShops : groupShops.slice(0, PREVIEW_COUNT);
           const hasMore = groupShops.length > PREVIEW_COUNT;
-
-          const shopsNotInGroup = shops.filter(s => !group.shopIds.includes(s.id));
+          const canAddMore = shops.length > group.shopIds.length;
 
           return (
             <div key={group.id}>
@@ -186,13 +188,13 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
                   <span className="text-sm font-normal text-gray-400 ml-2">({groupShops.length})</span>
                 </h2>
                 <div className="flex items-center gap-2">
-                  {shopsNotInGroup.length > 0 && (
+                  {canAddMore && (
                     <button
                       onClick={() => openGroupPicker(group.id)}
-                      className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-sm font-bold flex items-center justify-center hover:bg-blue-200"
+                      className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-full text-xs font-medium hover:bg-blue-100 transition-colors"
                       title="Add shops to this group"
                     >
-                      +
+                      <span className="text-sm leading-none">+</span> Add
                     </button>
                   )}
                   {hasMore && (
@@ -258,59 +260,129 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
         />
       )}
 
+      {/* Add shops to group — bottom sheet */}
       {addingToGroupId && (() => {
         const group = groups.find(g => g.id === addingToGroupId);
-        const shopsNotInGroup = shops.filter(s => !group?.shopIds.includes(s.id));
+        if (!group) return null;
+
+        const query = pickerSearch.trim().toLowerCase();
+        const sortedShops = [...shops].sort((a, b) => {
+          const aIn = group.shopIds.includes(a.id);
+          const bIn = group.shopIds.includes(b.id);
+          if (aIn !== bIn) return aIn ? 1 : -1; // not-in-group first
+          return (a.name || a.address).localeCompare(b.name || b.address);
+        });
+        const filtered = query
+          ? sortedShops.filter(s =>
+              (s.name || '').toLowerCase().includes(query) ||
+              s.address.toLowerCase().includes(query) ||
+              s.district.toLowerCase().includes(query)
+            )
+          : sortedShops;
+
+        const notInGroupCount = shops.filter(s => !group.shopIds.includes(s.id)).length;
+
         return (
-          <div className="fixed inset-0 bg-black/40 flex items-end z-50" onClick={closeGroupPicker}>
-            <div className="bg-white w-full rounded-t-2xl max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-                <h3 className="font-bold text-gray-900">Add shops to "{group?.name}"</h3>
-                <button onClick={closeGroupPicker} className="text-gray-400 text-xl leading-none">×</button>
+          <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={closeGroupPicker}>
+            <div
+              className="bg-white w-full rounded-t-2xl flex flex-col"
+              style={{ maxHeight: '80vh' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">Add to "{group.name}"</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {notInGroupCount} shop{notInGroupCount !== 1 ? 's' : ''} can be added · tap to add instantly
+                  </p>
+                </div>
+                <button
+                  onClick={closeGroupPicker}
+                  className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 text-lg leading-none"
+                >
+                  ×
+                </button>
               </div>
-              <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
-                {shopsNotInGroup.length === 0 ? (
-                  <p className="text-center text-gray-400 py-6 text-sm">All shops are already in this group.</p>
-                ) : (
-                  shopsNotInGroup.map(shop => (
-                    <label
-                      key={shop.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        pickerSelected.has(shop.id) ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'
-                      }`}
+
+              {/* Search bar */}
+              <div className="px-4 pb-3">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                  <input
+                    type="text"
+                    value={pickerSearch}
+                    onChange={e => setPickerSearch(e.target.value)}
+                    placeholder="Search by name, address or district..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
+                    autoFocus
+                  />
+                  {pickerSearch && (
+                    <button
+                      onClick={() => setPickerSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
                     >
-                      <input
-                        type="checkbox"
-                        checked={pickerSelected.has(shop.id)}
-                        onChange={() => {
-                          setPickerSelected(prev => {
-                            const next = new Set(prev);
-                            if (next.has(shop.id)) next.delete(shop.id);
-                            else next.add(shop.id);
-                            return next;
-                          });
-                        }}
-                        className="w-5 h-5 rounded accent-blue-600 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm text-gray-900 truncate">{shop.name || shop.address}</p>
-                        <p className="text-xs text-gray-500 truncate">{shop.name ? shop.address : ''}{shop.district ? ` · ${shop.district}` : ''}</p>
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-gray-100" />
+
+              {/* Shop list */}
+              <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1.5">
+                {filtered.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8 text-sm">No shops match your search.</p>
+                ) : (
+                  filtered.map(shop => {
+                    const alreadyIn = group.shopIds.includes(shop.id);
+                    const saving = savingShopIds.has(shop.id);
+                    return (
+                      <div
+                        key={shop.id}
+                        className={`flex items-center gap-3 px-3 py-3 rounded-xl border transition-all ${
+                          alreadyIn
+                            ? 'bg-gray-50 border-gray-100 opacity-60'
+                            : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer active:scale-[0.98]'
+                        }`}
+                        onClick={() => !alreadyIn && !saving && handleAddShopToGroup(shop.id)}
+                      >
+                        {/* Status icon */}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm ${
+                          alreadyIn
+                            ? 'bg-green-100 text-green-600'
+                            : saving
+                              ? 'bg-blue-100 text-blue-400'
+                              : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          {alreadyIn ? '✓' : saving ? '…' : '+'}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium text-sm truncate ${alreadyIn ? 'text-gray-500' : 'text-gray-900'}`}>
+                            {shop.name || shop.address}
+                          </p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {shop.name ? shop.address : ''}
+                            {shop.district ? (shop.name ? ` · ${shop.district}` : shop.district) : ''}
+                          </p>
+                        </div>
+
+                        {/* Right label */}
+                        <span className={`text-xs font-medium shrink-0 ${alreadyIn ? 'text-green-500' : 'text-blue-500'}`}>
+                          {alreadyIn ? 'In group' : saving ? 'Adding...' : 'Tap to add'}
+                        </span>
                       </div>
-                    </label>
-                  ))
+                    );
+                  })
                 )}
               </div>
-              {shopsNotInGroup.length > 0 && (
-                <div className="px-4 py-3 border-t border-gray-200">
-                  <button
-                    onClick={handleAddShopsToGroup}
-                    disabled={pickerSelected.size === 0 || pickerSaving}
-                    className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                  >
-                    {pickerSaving ? 'Adding...' : `Add ${pickerSelected.size > 0 ? pickerSelected.size : ''} shop${pickerSelected.size !== 1 ? 's' : ''}`}
-                  </button>
-                </div>
-              )}
+
+              {/* Bottom safe area */}
+              <div className="h-4" />
             </div>
           </div>
         );
