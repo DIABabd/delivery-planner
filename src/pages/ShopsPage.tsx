@@ -291,125 +291,127 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
               onTouchEnd={closeGroupPicker}
             />
 
-            {/* Sheet */}
+            {/* Sheet — fixed height so header/footer never scroll off */}
             <div
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl z-50 flex flex-col shadow-2xl"
-              style={{ maxHeight: '82vh' }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl z-50 shadow-2xl"
+              style={{ height: '78vh' }}
             >
-              {/* Drag handle */}
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 bg-gray-300 rounded-full" />
-              </div>
+              {/* inner flex column fills exact height */}
+              <div className="flex flex-col h-full">
 
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 pt-2 pb-3">
-                <div>
-                  <h3 className="font-bold text-gray-900 text-base">Add to "{group.name}"</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {notInGroupCount} shop{notInGroupCount !== 1 ? 's' : ''} available · tap any to add
-                  </p>
+                {/* Drag handle */}
+                <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+                  <div className="w-10 h-1 bg-gray-300 rounded-full" />
                 </div>
-                <button
-                  onClick={closeGroupPicker}
-                  className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-200 text-xl font-light"
-                >
-                  ×
-                </button>
-              </div>
 
-              {/* Search bar */}
-              <div className="px-4 pb-3">
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm select-none">🔍</span>
-                  <input
-                    type="text"
-                    value={pickerSearch}
-                    onChange={e => setPickerSearch(e.target.value)}
-                    placeholder="Search shops..."
-                    className="w-full pl-9 pr-9 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
-                  />
-                  {pickerSearch && (
-                    <button
-                      onClick={() => setPickerSearch('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xl leading-none"
-                    >
-                      ×
-                    </button>
+                {/* Header — fixed, never scrolls */}
+                <div className="flex items-center justify-between px-4 pt-1 pb-2 shrink-0">
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base">Add to "{group.name}"</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {notInGroupCount} shop{notInGroupCount !== 1 ? 's' : ''} available · tap to add
+                    </p>
+                  </div>
+                  <button
+                    onClick={closeGroupPicker}
+                    className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-200 text-2xl leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Search bar — fixed, never scrolls */}
+                <div className="px-4 pb-2 shrink-0">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm select-none pointer-events-none">🔍</span>
+                    <input
+                      type="text"
+                      value={pickerSearch}
+                      onChange={e => setPickerSearch(e.target.value)}
+                      placeholder="Search shops..."
+                      className="w-full pl-9 pr-9 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
+                    />
+                    {pickerSearch && (
+                      <button
+                        onClick={() => setPickerSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xl leading-none"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 shrink-0" />
+
+                {/* Scrollable shop list — takes remaining space */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {filtered.length === 0 ? (
+                    <p className="text-center text-gray-400 py-10 text-sm">No shops match your search.</p>
+                  ) : (
+                    filtered.map((shop, idx) => {
+                      const alreadyIn = group.shopIds.includes(shop.id);
+                      const saving = savingShopIds.has(shop.id);
+                      const isLast = idx === filtered.length - 1;
+                      return (
+                        <div
+                          key={shop.id}
+                          className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                            !isLast ? 'border-b border-gray-100' : ''
+                          } ${
+                            alreadyIn
+                              ? 'bg-gray-50'
+                              : saving
+                                ? 'bg-blue-50'
+                                : 'bg-white active:bg-blue-50 cursor-pointer'
+                          }`}
+                          onClick={() => !alreadyIn && !saving && handleAddShopToGroup(shop.id)}
+                        >
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-base ${
+                            alreadyIn
+                              ? 'bg-green-100 text-green-600'
+                              : saving
+                                ? 'bg-blue-100 text-blue-400'
+                                : 'bg-blue-600 text-white'
+                          }`}>
+                            {alreadyIn ? '✓' : saving ? '…' : '+'}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-semibold text-sm truncate ${alreadyIn ? 'text-gray-400' : 'text-gray-900'}`}>
+                              {shop.name || shop.address}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">
+                              {shop.name ? shop.address : ''}
+                              {shop.district ? (shop.name ? ` · ${shop.district}` : shop.district) : ''}
+                            </p>
+                          </div>
+
+                          {alreadyIn ? (
+                            <span className="text-xs font-medium text-green-500 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full shrink-0">
+                              In group
+                            </span>
+                          ) : saving ? (
+                            <span className="text-xs font-medium text-blue-400 shrink-0">Adding…</span>
+                          ) : (
+                            <span className="text-xs font-medium text-blue-600 shrink-0">+ Add</span>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
-              </div>
 
-              <div className="border-t border-gray-200" />
+                {/* Done button — fixed at bottom, never scrolls */}
+                <div className="px-4 py-3 border-t border-gray-200 shrink-0">
+                  <button
+                    onClick={closeGroupPicker}
+                    className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-700 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
 
-              {/* Shop list */}
-              <div className="flex-1 overflow-y-auto">
-                {filtered.length === 0 ? (
-                  <p className="text-center text-gray-400 py-10 text-sm">No shops match your search.</p>
-                ) : (
-                  filtered.map((shop, idx) => {
-                    const alreadyIn = group.shopIds.includes(shop.id);
-                    const saving = savingShopIds.has(shop.id);
-                    const isLast = idx === filtered.length - 1;
-                    return (
-                      <div
-                        key={shop.id}
-                        className={`flex items-center gap-3 px-4 py-3 transition-colors ${
-                          !isLast ? 'border-b border-gray-100' : ''
-                        } ${
-                          alreadyIn
-                            ? 'bg-gray-50'
-                            : saving
-                              ? 'bg-blue-50'
-                              : 'bg-white active:bg-blue-50 cursor-pointer'
-                        }`}
-                        onClick={() => !alreadyIn && !saving && handleAddShopToGroup(shop.id)}
-                      >
-                        {/* Status icon */}
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-base ${
-                          alreadyIn
-                            ? 'bg-green-100 text-green-600'
-                            : saving
-                              ? 'bg-blue-100 text-blue-400'
-                              : 'bg-blue-600 text-white'
-                        }`}>
-                          {alreadyIn ? '✓' : saving ? '…' : '+'}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-semibold text-sm truncate ${alreadyIn ? 'text-gray-400' : 'text-gray-900'}`}>
-                            {shop.name || shop.address}
-                          </p>
-                          <p className="text-xs text-gray-400 truncate">
-                            {shop.name ? shop.address : ''}
-                            {shop.district ? (shop.name ? ` · ${shop.district}` : shop.district) : ''}
-                          </p>
-                        </div>
-
-                        {/* Right badge */}
-                        {alreadyIn ? (
-                          <span className="text-xs font-medium text-green-500 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
-                            In group
-                          </span>
-                        ) : saving ? (
-                          <span className="text-xs font-medium text-blue-400 shrink-0">Adding…</span>
-                        ) : (
-                          <span className="text-xs font-medium text-blue-600 shrink-0">+ Add</span>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Done button */}
-              <div className="px-4 py-3 border-t border-gray-200">
-                <button
-                  onClick={closeGroupPicker}
-                  className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-700 transition-colors"
-                >
-                  Done
-                </button>
               </div>
             </div>
           </>
