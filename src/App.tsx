@@ -84,6 +84,7 @@ function App() {
               onHomeChange={handleHomeChange}
               onLogout={handleLogout}
               onUpdateGroup={updateGroup}
+              onDeleteGroup={deleteGroup}
             />
           )}
           {tab === 'route' && (

@@ -17,12 +17,13 @@ interface Props {
   onReplaceAll: (shops: Shop[]) => void;
   onHomeChange: (home: HomeAddress | null) => void;
   onLogout: () => void;
-  onUpdateGroup: (id: string, updates: { shopIds?: string[] }) => Promise<boolean>;
+  onUpdateGroup: (id: string, updates: { name?: string; shopIds?: string[] }) => Promise<boolean>;
+  onDeleteGroup: (id: string) => Promise<boolean>;
 }
 
 const PREVIEW_COUNT = 3;
 
-export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout, onUpdateGroup }: Props) {
+export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onReplaceAll, onHomeChange, onLogout, onUpdateGroup, onDeleteGroup }: Props) {
   const [editing, setEditing] = useState<Shop | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -30,6 +31,8 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
   const [quickAdd, setQuickAdd] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [pickerGroupId, setPickerGroupId] = useState<string | null>(null);
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const toggleExpand = (groupId: string) => {
     setExpandedGroups(prev => {
@@ -159,13 +162,43 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
           const hasMore = groupShops.length > PREVIEW_COUNT;
           const canAddMore = shops.length > group.shopIds.length;
 
+          const isRenaming = renamingGroupId === group.id;
+
           return (
             <div key={group.id}>
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-bold text-gray-900">
-                  {group.name}
-                  <span className="text-sm font-normal text-gray-400 ml-2">({groupShops.length})</span>
-                </h2>
+                {isRenaming ? (
+                  <form
+                    className="flex items-center gap-2 flex-1 mr-2"
+                    onSubmit={async e => {
+                      e.preventDefault();
+                      const trimmed = renameValue.trim();
+                      if (trimmed && trimmed !== group.name) {
+                        await onUpdateGroup(group.id, { name: trimmed });
+                      }
+                      setRenamingGroupId(null);
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={renameValue}
+                      onChange={e => setRenameValue(e.target.value)}
+                      className="flex-1 px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
+                    <button type="submit" className="text-xs text-blue-600 font-medium">Save</button>
+                    <button type="button" onClick={() => setRenamingGroupId(null)} className="text-xs text-gray-400">Cancel</button>
+                  </form>
+                ) : (
+                  <h2
+                    className="text-base font-bold text-gray-900 cursor-pointer"
+                    onClick={() => { setRenamingGroupId(group.id); setRenameValue(group.name); }}
+                    title="Tap to rename"
+                  >
+                    {group.name}
+                    <span className="text-sm font-normal text-gray-400 ml-2">({groupShops.length})</span>
+                  </h2>
+                )}
                 <div className="flex items-center gap-2">
                   {canAddMore && (
                     <button
@@ -183,11 +216,32 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
                       {isExpanded ? 'Show less' : 'See all'}
                     </button>
                   )}
+                  <button
+                    onClick={() => { if (confirm(`Delete group "${group.name}"? (Shops won't be deleted)`)) onDeleteGroup(group.id); }}
+                    className="text-gray-400 hover:text-red-500 text-lg leading-none"
+                    title="Delete group"
+                  >
+                    &times;
+                  </button>
                 </div>
               </div>
               <div className="space-y-1.5">
                 {displayShops.map(shop => (
-                  <ShopCard key={shop.id} shop={shop} onEdit={onEdit} onDelete={onDeleteShop} />
+                  <div key={shop.id} className="flex items-center gap-1">
+                    <div className="flex-1 min-w-0">
+                      <ShopCard shop={shop} onEdit={onEdit} onDelete={onDeleteShop} />
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newIds = group.shopIds.filter(id => id !== shop.id);
+                        onUpdateGroup(group.id, { shopIds: newIds });
+                      }}
+                      className="text-gray-300 hover:text-red-400 text-xs shrink-0 px-1"
+                      title="Remove from group"
+                    >
+                      remove
+                    </button>
+                  </div>
                 ))}
               </div>
               <div className="border-b border-gray-200 mt-4" />
