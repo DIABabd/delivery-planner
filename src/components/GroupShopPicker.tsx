@@ -69,19 +69,18 @@ export function GroupShopPicker({ group, shops, onAdd, onClose }: Props) {
           <div>
             <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>Add to "{group.name}"</div>
             <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-              Tap a shop to add it instantly
+              Tap + on a shop to add it
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              width: 32, height: 32, borderRadius: '50%',
+              padding: '8px 16px', borderRadius: 20,
               background: '#f3f4f6', border: 'none',
-              fontSize: 20, cursor: 'pointer', color: '#6b7280',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14, fontWeight: 600, cursor: 'pointer', color: '#374151',
             }}
           >
-            ×
+            Close
           </button>
         </div>
 
@@ -135,27 +134,13 @@ export function GroupShopPicker({ group, shops, onAdd, onClose }: Props) {
             return (
               <div
                 key={shop.id}
-                onClick={() => !inGroup && !isAdding && handleAdd(shop.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
                   padding: '12px 16px',
                   borderBottom: '1px solid #f3f4f6',
                   background: inGroup ? '#f9fafb' : isAdding ? '#eff6ff' : '#fff',
-                  cursor: inGroup || isAdding ? 'default' : 'pointer',
-                  transition: 'background 0.15s',
                 }}
               >
-                {/* icon */}
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 700, fontSize: 16,
-                  background: inGroup ? '#dcfce7' : isAdding ? '#dbeafe' : '#2563eb',
-                  color: inGroup ? '#16a34a' : isAdding ? '#60a5fa' : '#fff',
-                }}>
-                  {inGroup ? '✓' : isAdding ? '…' : '+'}
-                </div>
-
                 {/* text */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
@@ -173,18 +158,30 @@ export function GroupShopPicker({ group, shops, onAdd, onClose }: Props) {
                   </div>
                 </div>
 
-                {/* right label */}
+                {/* right action */}
                 {inGroup ? (
                   <span style={{
                     fontSize: 11, fontWeight: 600, color: '#16a34a',
                     background: '#dcfce7', padding: '2px 8px', borderRadius: 20, flexShrink: 0,
                   }}>
-                    In group
+                    ✓ In group
                   </span>
                 ) : isAdding ? (
                   <span style={{ fontSize: 12, color: '#60a5fa', flexShrink: 0 }}>Adding…</span>
                 ) : (
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#2563eb', flexShrink: 0 }}>+ Add</span>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleAdd(shop.id); }}
+                    style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: '#2563eb', border: 'none',
+                      color: '#fff', fontSize: 22, fontWeight: 700,
+                      cursor: 'pointer', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      lineHeight: 1,
+                    }}
+                  >
+                    +
+                  </button>
                 )}
               </div>
             );
