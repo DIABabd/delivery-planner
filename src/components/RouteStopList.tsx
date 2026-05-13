@@ -12,6 +12,7 @@ interface Props {
   doneIds: Set<string>;
   onToggleDone: (id: string) => void;
   onMarkBatchDone: (ids: string[]) => void;
+  onBeforeNavigate?: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -22,7 +23,7 @@ function formatDuration(seconds: number): string {
   return `${m} min`;
 }
 
-export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder, doneIds, onToggleDone, onMarkBatchDone }: Props) {
+export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder, doneIds, onToggleDone, onMarkBatchDone, onBeforeNavigate }: Props) {
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
@@ -135,6 +136,7 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder,
   const totalCount = stops.length;
 
   const handleNavigateBatch = () => {
+    onBeforeNavigate?.();
     openFullRoute(currentBatchNav, userLoc);
   };
 
@@ -275,7 +277,10 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder,
 
               {stop.lat != null && (
                 <button
-                  onClick={() => openSingleNavigation(stop.lat!, stop.lng!)}
+                  onClick={() => {
+                    onBeforeNavigate?.();
+                    openSingleNavigation(stop.lat!, stop.lng!);
+                  }}
                   className="px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 shrink-0"
                 >
                   Go
@@ -296,7 +301,10 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder,
               <p className="text-xs text-gray-500 truncate">{home.address}, {home.city}</p>
             </div>
             <button
-              onClick={() => openSingleNavigation(home.lat, home.lng)}
+              onClick={() => {
+                onBeforeNavigate?.();
+                openSingleNavigation(home.lat, home.lng);
+              }}
               className="px-2.5 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 shrink-0"
             >
               Go

@@ -3,7 +3,7 @@ import type { TabId } from './types';
 import { useShops } from './hooks/useShops';
 import { useRoute } from './hooks/useRoute';
 import { useGroups } from './hooks/useGroups';
-import { logout, onAuthChange } from './utils/auth';
+import { isLoggedIn, logout, onAuthChange } from './utils/auth';
 import { loadHome, saveHome, type HomeAddress } from './utils/storage';
 import { LoginScreen } from './components/LoginScreen';
 import { BottomNav } from './components/BottomNav';
@@ -13,20 +13,34 @@ import { RoutePage } from './pages/RoutePage';
 
 function App() {
   const [authed, setAuthed] = useState<boolean | null>(null); // null = checking
-  const [tab, setTab] = useState<TabId>('shops');
+  const [tab, setTabState] = useState<TabId>(() => {
+    try {
+      const savedTab = localStorage.getItem('active-tab');
+      return savedTab === 'route' ? 'route' : 'shops';
+    } catch {
+      return 'shops';
+    }
+  });
   const [home, setHome] = useState<HomeAddress | null>(null);
   const { shops, addShop, updateShop, deleteShop, replaceAll, reload } = useShops();
   const {
     selectedIds, orderedStops, isOptimized, userLocation, locating, routeInfo, routeGeometry, doneIds,
     toggleShop, addToSelection, removeFromSelection, clearSelection, optimize, reorderStops, toggleDone, markBatchDone,
     restoreStops,
+    persistRoute,
   } = useRoute();
   const { groups, reload: reloadGroups, addGroup, updateGroup, deleteGroup } = useGroups();
+
+  const setTab = (nextTab: TabId) => {
+    setTabState(nextTab);
+    try { localStorage.setItem('active-tab', nextTab); } catch { /* ignore */ }
+  };
 
   // Listen for auth changes. Only reload data on real session transitions —
   // not on TOKEN_REFRESHED (fires every ~hour) or USER_UPDATED, which would
   // trigger redundant network calls and full re-renders of the map.
   useEffect(() => {
+    let active = true;
     const { data } = onAuthChange((loggedIn, event) => {
       setAuthed(loggedIn);
       if (loggedIn && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
@@ -35,7 +49,21 @@ function App() {
         loadHome().then(setHome);
       }
     });
-    return () => data.subscription.unsubscribe();
+    isLoggedIn().then(loggedIn => {
+      if (!active) return;
+      setAuthed(prev => prev ?? loggedIn);
+      if (loggedIn) {
+        reload();
+        reloadGroups();
+        loadHome().then(h => {
+          if (active) setHome(h);
+        });
+      }
+    });
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
   }, [reload, reloadGroups]);
 
   // Restore ordered stops once shops are loaded from DB
@@ -116,6 +144,7 @@ function App() {
               doneIds={doneIds}
               onToggleDone={toggleDone}
               onMarkBatchDone={markBatchDone}
+              onPersistRoute={persistRoute}
               onSaveGroup={addGroup}
               onUpdateGroup={updateGroup}
               onDeleteGroup={deleteGroup}

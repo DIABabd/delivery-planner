@@ -51,6 +51,7 @@ export function useRoute() {
   const [doneIds, setDoneIds] = useState<Set<string>>(
     () => new Set(saved?.doneIds ?? [])
   );
+  const stateRef = useRef<SavedState | null>(null);
 
   // Restore ordered stops once shops are available
   const [pendingStopIds] = useState<string[]>(saved?.orderedStopIds ?? []);
@@ -66,13 +67,15 @@ export function useRoute() {
     }
   }, [pendingStopIds]);
 
+  const persistRoute = useCallback(() => {
+    if (stateRef.current) saveState(stateRef.current);
+  }, []);
+
   // Auto-save on every meaningful change. Debounced so toggling many "done"
   // checkboxes in a row doesn't JSON-stringify the full route geometry every tick.
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      saveState({
+    stateRef.current = {
         selectedIds: Array.from(selectedIds),
         orderedStopIds: orderedStops.map(s => s.id),
         isOptimized,
@@ -80,12 +83,30 @@ export function useRoute() {
         routeInfo,
         routeGeometry,
         savedAt: Date.now(),
-      });
+    };
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      persistRoute();
     }, 250);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [selectedIds, orderedStops, isOptimized, doneIds, routeInfo, routeGeometry]);
+  }, [selectedIds, orderedStops, isOptimized, doneIds, routeInfo, routeGeometry, persistRoute]);
+
+  useEffect(() => {
+    const saveBeforeBackground = () => persistRoute();
+    const saveWhenHidden = () => {
+      if (document.visibilityState === 'hidden') persistRoute();
+    };
+
+    window.addEventListener('pagehide', saveBeforeBackground);
+    document.addEventListener('visibilitychange', saveWhenHidden);
+    return () => {
+      window.removeEventListener('pagehide', saveBeforeBackground);
+      document.removeEventListener('visibilitychange', saveWhenHidden);
+    };
+  }, [persistRoute]);
 
   const toggleShop = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -243,5 +264,6 @@ export function useRoute() {
     toggleDone,
     markBatchDone,
     restoreStops,
+    persistRoute,
   };
 }

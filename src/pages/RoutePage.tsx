@@ -24,6 +24,7 @@ interface Props {
   doneIds: Set<string>;
   onToggleDone: (id: string) => void;
   onMarkBatchDone: (ids: string[]) => void;
+  onPersistRoute: () => void;
   onSaveGroup: (name: string, shopIds: string[]) => Promise<ShopGroup | null>;
   onUpdateGroup: (id: string, updates: { shopIds?: string[] }) => Promise<boolean>;
   onDeleteGroup: (id: string) => Promise<boolean>;
@@ -32,7 +33,7 @@ interface Props {
 export function RoutePage({
   shops, selectedIds, orderedStops, isOptimized, locating, userLocation, home, routeInfo,
   groups, onToggle, onAddToSelection, onRemoveFromSelection, onClear, onOptimize, onReorder,
-  doneIds, onToggleDone, onMarkBatchDone,
+  doneIds, onToggleDone, onMarkBatchDone, onPersistRoute,
   onSaveGroup, onUpdateGroup, onDeleteGroup,
 }: Props) {
   const [finishing, setFinishing] = useState(false);
@@ -108,6 +109,7 @@ export function RoutePage({
               doneIds={doneIds}
               onToggleDone={onToggleDone}
               onMarkBatchDone={onMarkBatchDone}
+              onBeforeNavigate={onPersistRoute}
             />
 
             <button

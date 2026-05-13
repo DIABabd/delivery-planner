@@ -20,9 +20,6 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReload = () => {
-    // Clear potentially-stale route state before reload so a bad cached value
-    // can't crash us again on next mount.
-    try { localStorage.removeItem('route-progress'); } catch { /* ignore */ }
     window.location.reload();
   };
 
