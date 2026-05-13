@@ -29,6 +29,19 @@ async function throttle() {
   lastRequestTime = Date.now();
 }
 
+function findHouseNumber(value: string): string {
+  const match = value.match(/\b\d{1,4}[a-zA-Z]?(?:\s*[-/]\s*\d{1,4}[a-zA-Z]?)?\b/);
+  return match?.[0].replace(/\s+/g, '') ?? '';
+}
+
+function buildStreetAddress(addr: Record<string, string> | undefined, displayName: string, fallbackQuery = ''): string {
+  const road = addr?.road || addr?.pedestrian || addr?.footway || addr?.cycleway || addr?.path || '';
+  if (!road) return '';
+
+  const houseNumber = addr?.house_number || findHouseNumber(displayName) || findHouseNumber(fallbackQuery);
+  return houseNumber ? `${road} ${houseNumber}` : road;
+}
+
 export async function reverseGeocode(lat: number, lng: number): Promise<GeocodingResult | null> {
   await throttle();
   const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
@@ -43,9 +56,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Geocodin
   if (!item || item.error) return null;
 
   const addr = item.address as Record<string, string> | undefined;
-  const road = addr?.road || '';
-  const houseNumber = addr?.house_number || '';
-  const streetAddr = road ? (houseNumber ? `${road} ${houseNumber}` : road) : '';
+  const streetAddr = buildStreetAddress(addr, item.display_name);
   const resultCity = addr?.city || addr?.town || addr?.village || addr?.municipality || extractCity(item.display_name);
   const district = addr?.suburb || addr?.city_district || addr?.quarter || '';
 
@@ -77,6 +88,7 @@ export async function geocodeAddress(address: string, city: string): Promise<Geo
   const addr = item.address as Record<string, string> | undefined;
   const resultCity = addr?.city || addr?.town || addr?.village || addr?.municipality || extractCity(item.display_name);
   const district = addr?.suburb || addr?.city_district || addr?.quarter || '';
+  const streetAddr = buildStreetAddress(addr, item.display_name, address);
 
   return {
     lat: parseFloat(item.lat),
@@ -84,6 +96,7 @@ export async function geocodeAddress(address: string, city: string): Promise<Geo
     displayName: item.display_name,
     district,
     city: resultCity,
+    address: streetAddr || undefined,
   };
 }
 
@@ -140,9 +153,7 @@ export async function searchAddresses(query: string): Promise<PlaceSuggestion[]>
     const addr = item.address as Record<string, string> | undefined;
     const city = addr?.city || addr?.town || addr?.village || addr?.municipality || extractCity(item.display_name as string);
     const district = addr?.suburb || addr?.city_district || addr?.quarter || '';
-    const road = addr?.road || '';
-    const houseNumber = addr?.house_number || '';
-    const streetAddr = road ? (houseNumber ? `${road} ${houseNumber}` : road) : extractAddress(item.display_name as string, item.name as string || '');
+    const streetAddr = buildStreetAddress(addr, item.display_name as string, query) || extractAddress(item.display_name as string, item.name as string || '');
     const isBremen = /bremen/i.test(city) || /bremen/i.test(item.display_name as string);
 
     return {

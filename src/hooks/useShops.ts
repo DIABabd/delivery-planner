@@ -19,6 +19,7 @@ export function useShops() {
     if (ok) {
       setShops(prev => prev.map(s => (s.id === id ? { ...s, ...updates } : s)));
     }
+    return ok;
   }, []);
 
   const deleteShop = useCallback(async (id: string) => {

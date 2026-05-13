@@ -6,7 +6,7 @@ interface Props {
   shop?: Shop | null;
   useLocation?: boolean;
   existingShops?: Shop[];
-  onSave: (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => void;
+  onSave: (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -20,6 +20,8 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
   const [lng, setLng] = useState<number | null>(shop?.lng ?? null);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -87,16 +89,14 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
   const [locating, setLocating] = useState(false);
   const autoLocateTriggered = useRef(false);
 
-  // Auto-trigger location when opened via GPS button
-  useEffect(() => {
-    if (autoLocate && !autoLocateTriggered.current) {
-      autoLocateTriggered.current = true;
-      handleUseLocation();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoLocate]);
+  const getLocationErrorMessage = (err: GeolocationPositionError) => {
+    if (err.code === err.PERMISSION_DENIED) return 'Location permission denied. Please allow location access for this site.';
+    if (err.code === err.POSITION_UNAVAILABLE) return 'Your device could not provide a location. Try again outside or type the address manually.';
+    if (err.code === err.TIMEOUT) return 'Location lookup timed out. Try again or type the address manually.';
+    return 'Could not get location. You can type the address manually.';
+  };
 
-  const handleUseLocation = () => {
+  const handleUseLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setGeocodeError('Geolocation not supported by this browser.');
       return;
@@ -126,12 +126,21 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
         setLocating(false);
       },
       (err) => {
-        setGeocodeError(err.code === 1 ? 'Location permission denied.' : 'Could not get location.');
+        setGeocodeError(getLocationErrorMessage(err));
         setLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     );
-  };
+  }, []);
+
+  // Auto-trigger location when opened via GPS button
+  useEffect(() => {
+    if (autoLocate && !autoLocateTriggered.current) {
+      autoLocateTriggered.current = true;
+      const timer = window.setTimeout(handleUseLocation, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [autoLocate, handleUseLocation]);
 
   const handleGeocode = async () => {
     if (!address) return;
@@ -142,6 +151,7 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
       if (result) {
         setLat(result.lat);
         setLng(result.lng);
+        if (result.address) setAddress(result.address);
         if (result.city) setCity(result.city);
         if (result.district) setDistrict(result.district);
       } else {
@@ -153,17 +163,26 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
     setGeocoding(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!address.trim()) return;
+    if (!address.trim() || submitting) return;
+    setSubmitting(true);
+    setSubmitError('');
     const trimmedName = name.trim();
     if (trimmedName && !shop) {
       const duplicate = existingShops.find(s => s.name.toLowerCase() === trimmedName.toLowerCase());
       if (duplicate) {
-        if (!confirm(`A shop named "${duplicate.name}" already exists. Do you still want to add it?`)) return;
+        if (!confirm(`A shop named "${duplicate.name}" already exists. Do you still want to add it?`)) {
+          setSubmitting(false);
+          return;
+        }
       }
     }
-    onSave({ name: trimmedName, address: address.trim(), city: city.trim(), district: district.trim(), notes: notes.trim(), lat, lng });
+    const ok = await onSave({ name: trimmedName, address: address.trim(), city: city.trim(), district: district.trim(), notes: notes.trim(), lat, lng }).catch(() => false);
+    if (!ok) {
+      setSubmitError('Could not save the shop. Please try again.');
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -261,7 +280,7 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
             <button
               type="button"
               onClick={handleUseLocation}
-              disabled={locating}
+              disabled={locating || submitting}
               className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 disabled:opacity-50 font-medium"
             >
               {locating ? 'Locating...' : 'Use My Location'}
@@ -269,7 +288,7 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
             <button
               type="button"
               onClick={handleGeocode}
-              disabled={geocoding || !address}
+              disabled={geocoding || submitting || !address}
               className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50"
             >
               {geocoding ? 'Finding...' : 'Find Location'}
@@ -281,12 +300,14 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
             )}
           </div>
           {geocodeError && <p className="text-xs text-amber-600">{geocodeError}</p>}
+          {submitError && <p className="text-xs text-red-600">{submitError}</p>}
 
           <button
             type="submit"
-            className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors"
+            disabled={submitting}
+            className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {shop ? 'Update Shop' : 'Add Shop'}
+            {submitting ? 'Saving...' : shop ? 'Update Shop' : 'Add Shop'}
           </button>
         </form>
       </div>

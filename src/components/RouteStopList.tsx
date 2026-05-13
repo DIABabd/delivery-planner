@@ -81,11 +81,6 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder,
     };
   }, [onReorder]);
 
-  if (stops.length === 0) return null;
-
-  const validStops = stops.filter(s => s.lat != null && s.lng != null);
-  const userLoc = userLocation ? { lat: userLocation[0], lng: userLocation[1] } : null;
-
   // Desktop drag handlers
   const handleDragStart = (i: number) => {
     dragItem.current = i;
@@ -117,6 +112,11 @@ export function RouteStopList({ stops, userLocation, home, routeInfo, onReorder,
       rowRefs.current.delete(index);
     }
   }, []);
+
+  if (stops.length === 0) return null;
+
+  const validStops = stops.filter(s => s.lat != null && s.lng != null);
+  const userLoc = userLocation ? { lat: userLocation[0], lng: userLocation[1] } : null;
 
   // Remaining stops (not done) for navigation
   const remainingStops = validStops.filter(s => !doneIds.has(s.id));

@@ -33,27 +33,27 @@ function loadState(): SavedState | null {
 }
 
 export function useRoute() {
-  const saved = useRef(loadState());
+  const [saved] = useState<SavedState | null>(() => loadState());
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set(saved.current?.selectedIds ?? [])
+    () => new Set(saved?.selectedIds ?? [])
   );
   const [orderedStops, setOrderedStops] = useState<Shop[]>([]);
-  const [isOptimized, setIsOptimized] = useState(saved.current?.isOptimized ?? false);
+  const [isOptimized, setIsOptimized] = useState(saved?.isOptimized ?? false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locating, setLocating] = useState(false);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number; usedOSRM: boolean } | null>(
-    saved.current?.routeInfo ?? null
+    saved?.routeInfo ?? null
   );
   const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(
-    saved.current?.routeGeometry ?? null
+    saved?.routeGeometry ?? null
   );
   const [doneIds, setDoneIds] = useState<Set<string>>(
-    () => new Set(saved.current?.doneIds ?? [])
+    () => new Set(saved?.doneIds ?? [])
   );
 
   // Restore ordered stops once shops are available
-  const [pendingStopIds] = useState<string[]>(saved.current?.orderedStopIds ?? []);
+  const [pendingStopIds] = useState<string[]>(saved?.orderedStopIds ?? []);
   const stopsRestoredRef = useRef(false);
 
   const restoreStops = useCallback((allShops: Shop[]) => {

@@ -12,8 +12,8 @@ interface Props {
   shops: Shop[];
   groups: ShopGroup[];
   home: HomeAddress | null;
-  onAdd: (data: Omit<Shop, 'id' | 'createdAt'>) => void;
-  onUpdate: (id: string, data: Partial<Shop>) => void;
+  onAdd: (data: Omit<Shop, 'id' | 'createdAt'>) => Promise<Shop | null>;
+  onUpdate: (id: string, data: Partial<Shop>) => Promise<boolean>;
   onDelete: (id: string) => void;
   onReplaceAll: (shops: Shop[]) => void;
   onHomeChange: (home: HomeAddress | null) => void;
@@ -55,14 +55,23 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
   groups.forEach(g => g.shopIds.forEach(id => groupedShopIds.add(id)));
   const ungroupedShops = shops.filter(s => !groupedShopIds.has(s.id));
 
-  const handleSave = (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => {
-    if (editing) {
-      onUpdate(editing.id, data);
-    } else {
-      onAdd(data);
-    }
+  const openAddForm = (useLocation: boolean) => {
+    setEditing(null);
+    setQuickAdd(useLocation);
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
     setShowForm(false);
     setEditing(null);
+    setQuickAdd(false);
+  };
+
+  const handleSave = async (data: { name: string; address: string; city: string; district: string; notes: string; lat: number | null; lng: number | null }) => {
+    const ok = editing ? await onUpdate(editing.id, data) : Boolean(await onAdd(data));
+    if (!ok) return false;
+    closeForm();
+    return true;
   };
 
   const handleExport = async () => {
@@ -95,7 +104,7 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
     input.click();
   };
 
-  const onEdit = (shop: Shop) => { setEditing(shop); setShowForm(true); };
+  const onEdit = (shop: Shop) => { setEditing(shop); setQuickAdd(false); setShowForm(true); };
   const onDeleteShop = (id: string) => { if (confirm('Delete this shop?')) onDelete(id); };
 
   const pickerGroup = pickerGroupId ? groups.find(g => g.id === pickerGroupId) ?? null : null;
@@ -106,13 +115,13 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
         <h1 className="text-lg font-bold text-gray-900">Shops</h1>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setEditing(null); setShowForm(true); }}
+            onClick={() => openAddForm(false)}
             className="w-8 h-8 bg-blue-600 text-white rounded-full text-lg font-bold flex items-center justify-center hover:bg-blue-700"
           >
             +
           </button>
           <button
-            onClick={() => { setEditing(null); setShowForm(true); setQuickAdd(true); }}
+            onClick={() => openAddForm(true)}
             className="w-8 h-8 bg-green-600 text-white rounded-full text-sm flex items-center justify-center hover:bg-green-700"
             title="Add shop at my location"
           >
@@ -283,7 +292,7 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
           useLocation={quickAdd}
           existingShops={shops}
           onSave={handleSave}
-          onClose={() => { setShowForm(false); setEditing(null); setQuickAdd(false); }}
+          onClose={closeForm}
         />
       )}
 
