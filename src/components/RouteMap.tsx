@@ -1,6 +1,6 @@
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, Circle } from 'react-leaflet';
 import L from 'leaflet';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Shop } from '../types';
 import type { HomeAddress } from '../utils/storage';
 import { openSingleNavigation } from '../utils/navigation';
@@ -90,10 +90,25 @@ function FitBounds({ allShops, routeStops, userLocation, home }: {
   home: HomeAddress | null;
 }) {
   const map = useMap();
-  useEffect(() => {
-    const points: [number, number][] = [];
+  const didInitialFitRef = useRef(false);
+  // Track route identity by stop IDs so we only refit when the route really
+  // changes — not on every render that happens to pass a new array.
+  const lastRouteKeyRef = useRef<string>('');
 
-    if (routeStops.length > 0) {
+  useEffect(() => {
+    const routeKey = routeStops.map(s => s.id).join('|');
+    const routeChanged = routeKey !== lastRouteKeyRef.current;
+    const hasRoute = routeStops.length > 0;
+
+    // Only refit when:
+    //  - a route is loaded or its stops changed (user optimized / reordered), or
+    //  - this is the very first time we have anything to show (initial load).
+    // Adding/editing a single shop while no route is active should NOT yank the map.
+    const shouldFit = (hasRoute && routeChanged) || !didInitialFitRef.current;
+    if (!shouldFit) return;
+
+    const points: [number, number][] = [];
+    if (hasRoute) {
       routeStops.forEach(s => {
         if (s.lat != null && s.lng != null) points.push([s.lat, s.lng]);
       });
@@ -104,10 +119,13 @@ function FitBounds({ allShops, routeStops, userLocation, home }: {
       });
       if (home) points.push([home.lat, home.lng]);
     }
-
     if (userLocation) points.push(userLocation);
 
     if (points.length === 0) return;
+
+    lastRouteKeyRef.current = routeKey;
+    didInitialFitRef.current = true;
+
     if (points.length === 1) {
       map.setView(points[0], 14);
       return;

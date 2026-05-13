@@ -66,17 +66,25 @@ export function useRoute() {
     }
   }, [pendingStopIds]);
 
-  // Auto-save on every meaningful change
+  // Auto-save on every meaningful change. Debounced so toggling many "done"
+  // checkboxes in a row doesn't JSON-stringify the full route geometry every tick.
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    saveState({
-      selectedIds: Array.from(selectedIds),
-      orderedStopIds: orderedStops.map(s => s.id),
-      isOptimized,
-      doneIds: Array.from(doneIds),
-      routeInfo,
-      routeGeometry,
-      savedAt: Date.now(),
-    });
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveState({
+        selectedIds: Array.from(selectedIds),
+        orderedStopIds: orderedStops.map(s => s.id),
+        isOptimized,
+        doneIds: Array.from(doneIds),
+        routeInfo,
+        routeGeometry,
+        savedAt: Date.now(),
+      });
+    }, 250);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
   }, [selectedIds, orderedStops, isOptimized, doneIds, routeInfo, routeGeometry]);
 
   const toggleShop = useCallback((id: string) => {

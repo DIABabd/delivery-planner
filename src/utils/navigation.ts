@@ -3,9 +3,19 @@ interface Stop {
   lng: number;
 }
 
+// Open Google Maps in a new tab/window so the app stays alive in its own tab.
+// Using window.location.href would navigate the app away entirely; on mobile,
+// returning 30+ minutes later often results in a blank page because the tab
+// was evicted from memory and the URL is now stuck on maps.google.com.
+function openMapsUrl(url: string) {
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  // Fallback for environments where popups are blocked (rare on user-initiated clicks)
+  if (!win) window.location.href = url;
+}
+
 export function openSingleNavigation(lat: number, lng: number) {
   const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-  window.location.href = url;
+  openMapsUrl(url);
 }
 
 export function openFullRoute(stops: Stop[], userLocation?: { lat: number; lng: number } | null) {
@@ -33,5 +43,5 @@ export function openFullRoute(stops: Stop[], userLocation?: { lat: number; lng: 
   const wpSlice = waypoints.slice(0, maxWaypoints);
   const wpStr = wpSlice.map(s => `${s.lat},${s.lng}`).join('|');
   const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${wpStr ? `&waypoints=${wpStr}` : ''}&travelmode=driving`;
-  window.location.href = url;
+  openMapsUrl(url);
 }

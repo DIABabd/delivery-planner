@@ -77,6 +77,13 @@ export function ShopForm({ shop, useLocation: autoLocate, existingShops = [], on
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // Cancel any pending debounced search when the form is closed
+  useEffect(() => {
+    return () => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    };
+  }, []);
+
   const [locating, setLocating] = useState(false);
   const autoLocateTriggered = useRef(false);
 

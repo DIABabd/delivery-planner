@@ -23,11 +23,13 @@ function App() {
   } = useRoute();
   const { groups, reload: reloadGroups, addGroup, updateGroup, deleteGroup } = useGroups();
 
-  // Listen for auth changes — this handles both initial session check and login/logout
+  // Listen for auth changes. Only reload data on real session transitions —
+  // not on TOKEN_REFRESHED (fires every ~hour) or USER_UPDATED, which would
+  // trigger redundant network calls and full re-renders of the map.
   useEffect(() => {
-    const { data } = onAuthChange((loggedIn) => {
+    const { data } = onAuthChange((loggedIn, event) => {
       setAuthed(loggedIn);
-      if (loggedIn) {
+      if (loggedIn && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
         reload();
         reloadGroups();
         loadHome().then(setHome);

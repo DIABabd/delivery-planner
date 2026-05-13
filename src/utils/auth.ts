@@ -22,8 +22,10 @@ export async function logout() {
   await supabase.auth.signOut();
 }
 
-export function onAuthChange(callback: (loggedIn: boolean) => void) {
-  return supabase.auth.onAuthStateChange((_event, session) => {
-    callback(!!session);
+export type AuthEvent = 'INITIAL_SESSION' | 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED' | 'PASSWORD_RECOVERY' | string;
+
+export function onAuthChange(callback: (loggedIn: boolean, event: AuthEvent) => void) {
+  return supabase.auth.onAuthStateChange((event, session) => {
+    callback(!!session, event);
   });
 }
