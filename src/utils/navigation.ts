@@ -3,18 +3,77 @@ interface Stop {
   lng: number;
 }
 
-// Open Google Maps in a new tab/window so the app stays alive in its own tab.
-// Using window.location.href would navigate the app away entirely; on mobile,
-// returning 30+ minutes later often results in a blank page because the tab
-// was evicted from memory and the URL is now stuck on maps.google.com.
+const EXTERNAL_NAV_KEY = 'route-planner-external-nav-at';
+
+function rememberExternalNavigation() {
+  try {
+    sessionStorage.setItem(EXTERNAL_NAV_KEY, String(Date.now()));
+  } catch {
+    // Ignore storage failures; navigation should still work.
+  }
+}
+
+function isAndroid() {
+  return /Android/i.test(navigator.userAgent);
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isMobileBrowser() {
+  return isAndroid() || isIOS() || /Mobile/i.test(navigator.userAgent);
+}
+
+function toAndroidIntentUrl(webUrl: string) {
+  const withoutScheme = webUrl.replace(/^https?:\/\//, '');
+  return `intent://${withoutScheme}#Intent;scheme=https;package=com.google.android.apps.maps;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+}
+
+function coord(stop: Stop) {
+  return `${stop.lat},${stop.lng}`;
+}
+
+function buildMapsUrl(options: {
+  origin?: string;
+  destination: string;
+  waypoints?: string[];
+}) {
+  const params = new URLSearchParams({
+    api: '1',
+    destination: options.destination,
+    travelmode: 'driving',
+  });
+
+  if (options.origin) params.set('origin', options.origin);
+  if (options.waypoints?.length) params.set('waypoints', options.waypoints.join('|'));
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+// On phones, opening Maps in a new browser tab creates the unwanted extra
+// Google Maps tab after the native app takes over. Use a same-tab native
+// handoff on mobile, and keep desktop behavior as a normal new tab.
 function openMapsUrl(url: string) {
+  rememberExternalNavigation();
+
+  if (isAndroid()) {
+    window.location.assign(toAndroidIntentUrl(url));
+    return;
+  }
+
+  if (isMobileBrowser()) {
+    window.location.assign(url);
+    return;
+  }
+
   const win = window.open(url, '_blank', 'noopener,noreferrer');
-  // Fallback for environments where popups are blocked (rare on user-initiated clicks)
-  if (!win) window.location.href = url;
+  if (!win) window.location.assign(url);
 }
 
 export function openSingleNavigation(lat: number, lng: number) {
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  const url = buildMapsUrl({ destination: `${lat},${lng}` });
   openMapsUrl(url);
 }
 
@@ -27,10 +86,10 @@ export function openFullRoute(stops: Stop[], userLocation?: { lat: number; lng: 
 
   // Origin is user's current location if available, otherwise first stop
   const origin = userLocation
-    ? `${userLocation.lat},${userLocation.lng}`
-    : `${stops[0].lat},${stops[0].lng}`;
+    ? coord(userLocation)
+    : coord(stops[0]);
 
-  const destination = `${stops[stops.length - 1].lat},${stops[stops.length - 1].lng}`;
+  const destination = coord(stops[stops.length - 1]);
 
   // When using user location, all stops are waypoints except the last (destination)
   // When no user location, first stop is origin so middle stops are waypoints
@@ -41,7 +100,10 @@ export function openFullRoute(stops: Stop[], userLocation?: { lat: number; lng: 
   // Google Maps supports up to 9 waypoints
   const maxWaypoints = 9;
   const wpSlice = waypoints.slice(0, maxWaypoints);
-  const wpStr = wpSlice.map(s => `${s.lat},${s.lng}`).join('|');
-  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${wpStr ? `&waypoints=${wpStr}` : ''}&travelmode=driving`;
+  const url = buildMapsUrl({
+    origin,
+    destination,
+    waypoints: wpSlice.map(coord),
+  });
   openMapsUrl(url);
 }

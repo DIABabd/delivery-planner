@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { TabId } from './types';
 import { useShops } from './hooks/useShops';
 import { useRoute } from './hooks/useRoute';
@@ -11,8 +11,11 @@ import { RouteMap } from './components/RouteMap';
 import { ShopsPage } from './pages/ShopsPage';
 import { RoutePage } from './pages/RoutePage';
 
+const RESUME_DATA_REFRESH_MS = 60 * 1000;
+
 function App() {
   const [authed, setAuthed] = useState<boolean | null>(null); // null = checking
+  const hiddenAtRef = useRef<number | null>(null);
   const [tab, setTabState] = useState<TabId>(() => {
     try {
       const savedTab = localStorage.getItem('active-tab');
@@ -63,6 +66,49 @@ function App() {
     return () => {
       active = false;
       data.subscription.unsubscribe();
+    };
+  }, [reload, reloadGroups]);
+
+  useEffect(() => {
+    let active = true;
+
+    const refreshAfterResume = async () => {
+      const loggedIn = await isLoggedIn();
+      if (!active) return;
+
+      setAuthed(loggedIn);
+      if (!loggedIn) return;
+
+      reload();
+      reloadGroups();
+      loadHome().then(h => {
+        if (active) setHome(h);
+      });
+    };
+
+    const handleVisible = () => {
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      if (hiddenAt && Date.now() - hiddenAt > RESUME_DATA_REFRESH_MS) {
+        void refreshAfterResume();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+      handleVisible();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handleVisible);
+
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handleVisible);
     };
   }, [reload, reloadGroups]);
 
