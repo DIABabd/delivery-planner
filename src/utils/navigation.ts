@@ -39,6 +39,7 @@ function buildMapsUrl(options: {
   origin?: string;
   destination: string;
   waypoints?: string[];
+  navigate?: boolean;
 }) {
   const params = new URLSearchParams({
     api: '1',
@@ -48,6 +49,7 @@ function buildMapsUrl(options: {
 
   if (options.origin) params.set('origin', options.origin);
   if (options.waypoints?.length) params.set('waypoints', options.waypoints.join('|'));
+  if (options.navigate) params.set('dir_action', 'navigate');
 
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
@@ -73,7 +75,7 @@ function openMapsUrl(url: string) {
 }
 
 export function openSingleNavigation(lat: number, lng: number) {
-  const url = buildMapsUrl({ destination: `${lat},${lng}` });
+  const url = buildMapsUrl({ destination: `${lat},${lng}`, navigate: true });
   openMapsUrl(url);
 }
 
@@ -85,15 +87,16 @@ export function openFullRoute(stops: Stop[], userLocation?: { lat: number; lng: 
   }
 
   // Origin is user's current location if available, otherwise first stop
-  const origin = userLocation
-    ? coord(userLocation)
-    : coord(stops[0]);
+  const shouldUseMapsCurrentLocation = Boolean(userLocation && isMobileBrowser());
+  const origin = shouldUseMapsCurrentLocation
+    ? undefined
+    : (userLocation ? coord(userLocation) : coord(stops[0]));
 
   const destination = coord(stops[stops.length - 1]);
 
   // When using user location, all stops are waypoints except the last (destination)
   // When no user location, first stop is origin so middle stops are waypoints
-  const waypoints = userLocation
+  const waypoints = userLocation || shouldUseMapsCurrentLocation
     ? stops.slice(0, -1)
     : stops.slice(1, -1);
 
@@ -104,6 +107,7 @@ export function openFullRoute(stops: Stop[], userLocation?: { lat: number; lng: 
     origin,
     destination,
     waypoints: wpSlice.map(coord),
+    navigate: true,
   });
   openMapsUrl(url);
 }
