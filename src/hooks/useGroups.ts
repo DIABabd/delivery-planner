@@ -1,14 +1,21 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { ShopGroup } from '../types';
-import { loadGroups, saveGroup, updateGroupInDb, deleteGroupFromDb } from '../utils/storage';
+import { fetchGroups, saveGroup, updateGroupInDb, deleteGroupFromDb } from '../utils/storage';
+import { CACHE_KEYS, readCache, writeCache } from '../utils/localCache';
 
 export function useGroups() {
-  const [groups, setGroups] = useState<ShopGroup[]>([]);
+  const [groups, setGroups] = useState<ShopGroup[]>(() => readCache<ShopGroup[]>(CACHE_KEYS.groups, []));
+
+  useEffect(() => {
+    writeCache(CACHE_KEYS.groups, groups);
+  }, [groups]);
 
   const reload = useCallback(async () => {
-    const data = await loadGroups();
-    setGroups(data);
+    const data = await fetchGroups();
+    if (data) setGroups(data);
   }, []);
+
+  const clear = useCallback(() => setGroups([]), []);
 
   const addGroup = useCallback(async (name: string, shopIds: string[]) => {
     const group = await saveGroup(name, shopIds);
@@ -32,5 +39,5 @@ export function useGroups() {
     return ok;
   }, []);
 
-  return { groups, reload, addGroup, updateGroup, deleteGroup };
+  return { groups, reload, clear, addGroup, updateGroup, deleteGroup };
 }

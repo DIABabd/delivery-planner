@@ -3,16 +3,6 @@ interface Stop {
   lng: number;
 }
 
-const EXTERNAL_NAV_KEY = 'route-planner-external-nav-at';
-
-function rememberExternalNavigation() {
-  try {
-    sessionStorage.setItem(EXTERNAL_NAV_KEY, String(Date.now()));
-  } catch {
-    // Ignore storage failures; navigation should still work.
-  }
-}
-
 function isAndroid() {
   return /Android/i.test(navigator.userAgent);
 }
@@ -58,8 +48,6 @@ function buildMapsUrl(options: {
 // Google Maps tab after the native app takes over. Use a same-tab native
 // handoff on mobile, and keep desktop behavior as a normal new tab.
 function openMapsUrl(url: string) {
-  rememberExternalNavigation();
-
   if (isAndroid()) {
     window.location.assign(toAndroidIntentUrl(url));
     return;

@@ -10,14 +10,16 @@ export interface HomeAddress {
 
 // ── Shops ─────────────────────────────────────────────────────
 
-export async function loadShops(): Promise<Shop[]> {
+// Returns null when the request failed (e.g. no signal), so callers can keep
+// showing what they already have instead of replacing it with an empty list.
+export async function fetchShops(): Promise<Shop[] | null> {
   const { data, error } = await supabase
     .from('shops')
     .select('*')
     .order('created_at', { ascending: true });
 
-  if (error) { console.error('loadShops error:', error); return []; }
-  if (!data) return [];
+  if (error) { console.error('loadShops error:', error); return null; }
+  if (!data) return null;
 
   return data.map(row => ({
     id: row.id,
@@ -30,6 +32,10 @@ export async function loadShops(): Promise<Shop[]> {
     lng: row.lng,
     createdAt: row.created_at,
   }));
+}
+
+export async function loadShops(): Promise<Shop[]> {
+  return (await fetchShops()) ?? [];
 }
 
 export async function saveShop(shop: Omit<Shop, 'id' | 'createdAt'>): Promise<Shop | null> {
@@ -96,20 +102,30 @@ export async function deleteShopFromDb(id: string): Promise<boolean> {
 
 // ── Home Address ──────────────────────────────────────────────
 
-export async function loadHome(): Promise<HomeAddress | null> {
+// `ok: false` means the request failed and we don't know the home address;
+// `ok: true, home: null` means the user really has no home address saved.
+export async function fetchHome(): Promise<{ ok: boolean; home: HomeAddress | null }> {
   const { data, error } = await supabase
     .from('home_addresses')
     .select('*')
-    .single();
+    .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) { console.error('loadHome error:', error); return { ok: false, home: null }; }
+  if (!data) return { ok: true, home: null };
 
   return {
-    address: data.address,
-    city: data.city,
-    lat: data.lat,
-    lng: data.lng,
+    ok: true,
+    home: {
+      address: data.address,
+      city: data.city,
+      lat: data.lat,
+      lng: data.lng,
+    },
   };
+}
+
+export async function loadHome(): Promise<HomeAddress | null> {
+  return (await fetchHome()).home;
 }
 
 export async function saveHome(home: HomeAddress | null): Promise<void> {
@@ -174,14 +190,14 @@ export async function saveRoute(route: {
 
 // ── Groups ───────────────────────────────────────────────────
 
-export async function loadGroups(): Promise<ShopGroup[]> {
+export async function fetchGroups(): Promise<ShopGroup[] | null> {
   const { data, error } = await supabase
     .from('groups')
     .select('*')
     .order('created_at', { ascending: true });
 
-  if (error) { console.error('loadGroups error:', error); return []; }
-  if (!data) return [];
+  if (error) { console.error('loadGroups error:', error); return null; }
+  if (!data) return null;
 
   return data.map(row => ({
     id: row.id,
@@ -189,6 +205,10 @@ export async function loadGroups(): Promise<ShopGroup[]> {
     shopIds: row.shop_ids ?? [],
     createdAt: row.created_at,
   }));
+}
+
+export async function loadGroups(): Promise<ShopGroup[]> {
+  return (await fetchGroups()) ?? [];
 }
 
 export async function saveGroup(name: string, shopIds: string[]): Promise<ShopGroup | null> {

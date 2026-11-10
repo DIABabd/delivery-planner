@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Shop } from '../types';
 import { optimizeRoute, type OptimizeResult } from '../utils/routeOptimizer';
+import { CACHE_KEYS, readCache } from '../utils/localCache';
 
 const STORAGE_KEY = 'route-progress';
 
@@ -38,7 +39,14 @@ export function useRoute() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(saved?.selectedIds ?? [])
   );
-  const [orderedStops, setOrderedStops] = useState<Shop[]>([]);
+  // Rebuild the stop list right away from the shops saved on the phone, so the
+  // route is back on screen immediately after the browser restarted the page.
+  const [orderedStops, setOrderedStops] = useState<Shop[]>(() => {
+    const ids = saved?.orderedStopIds ?? [];
+    if (ids.length === 0) return [];
+    const shopMap = new Map(readCache<Shop[]>(CACHE_KEYS.shops, []).map(s => [s.id, s]));
+    return ids.map(id => shopMap.get(id)).filter((s): s is Shop => !!s);
+  });
   const [isOptimized, setIsOptimized] = useState(saved?.isOptimized ?? false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locating, setLocating] = useState(false);
@@ -55,16 +63,15 @@ export function useRoute() {
 
   // Restore ordered stops once shops are available
   const [pendingStopIds] = useState<string[]>(saved?.orderedStopIds ?? []);
-  const stopsRestoredRef = useRef(false);
+  const stopsRestoredRef = useRef(pendingStopIds.length === 0 || orderedStops.length > 0);
 
+  // Fallback for when the phone had no saved shops yet: restore once they load.
   const restoreStops = useCallback((allShops: Shop[]) => {
-    if (stopsRestoredRef.current || pendingStopIds.length === 0) return;
+    if (stopsRestoredRef.current || allShops.length === 0) return;
+    stopsRestoredRef.current = true;
     const shopMap = new Map(allShops.map(s => [s.id, s]));
     const restored = pendingStopIds.map(id => shopMap.get(id)).filter((s): s is Shop => !!s);
-    if (restored.length > 0) {
-      setOrderedStops(restored);
-      stopsRestoredRef.current = true;
-    }
+    if (restored.length > 0) setOrderedStops(restored);
   }, [pendingStopIds]);
 
   const persistRoute = useCallback(() => {
@@ -75,6 +82,10 @@ export function useRoute() {
   // checkboxes in a row doesn't JSON-stringify the full route geometry every tick.
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    // Until the saved stops are back on screen, the stop list is still empty.
+    // Saving now would overwrite the driver's saved route with an empty one.
+    if (!stopsRestoredRef.current) return;
+
     stateRef.current = {
         selectedIds: Array.from(selectedIds),
         orderedStopIds: orderedStops.map(s => s.id),
@@ -164,7 +175,9 @@ export function useRoute() {
     setRouteInfo(null);
     setRouteGeometry(null);
     setDoneIds(new Set());
-    localStorage.removeItem(STORAGE_KEY);
+    stopsRestoredRef.current = true;
+    stateRef.current = null;
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   }, []);
 
   const toggleDone = useCallback((id: string) => {

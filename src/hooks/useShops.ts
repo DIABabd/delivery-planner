@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { Shop } from '../types';
-import { loadShops, saveShop, updateShopInDb, deleteShopFromDb } from '../utils/storage';
+import { fetchShops, saveShop, updateShopInDb, deleteShopFromDb } from '../utils/storage';
+import { CACHE_KEYS, readCache, writeCache } from '../utils/localCache';
 
 export function useShops() {
-  const [shops, setShops] = useState<Shop[]>([]);
+  const [shops, setShops] = useState<Shop[]>(() => readCache<Shop[]>(CACHE_KEYS.shops, []));
   const [loading, setLoading] = useState(true);
 
   const addShop = useCallback(async (shop: Omit<Shop, 'id' | 'createdAt'>) => {
@@ -29,17 +30,20 @@ export function useShops() {
     }
   }, []);
 
-  const replaceAll = useCallback(async () => {
-    const data = await loadShops();
-    setShops(data);
-  }, []);
+  // Keep the on-phone copy in step with what is on screen.
+  useEffect(() => {
+    writeCache(CACHE_KEYS.shops, shops);
+  }, [shops]);
 
+  // If the request fails (no signal), keep the shops we already have.
   const reload = useCallback(async () => {
     setLoading(true);
-    const data = await loadShops();
-    setShops(data);
+    const data = await fetchShops();
+    if (data) setShops(data);
     setLoading(false);
   }, []);
 
-  return { shops, loading, addShop, updateShop, deleteShop, replaceAll, reload };
+  const clear = useCallback(() => setShops([]), []);
+
+  return { shops, loading, addShop, updateShop, deleteShop, replaceAll: reload, reload, clear };
 }
