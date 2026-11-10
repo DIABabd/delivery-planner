@@ -1,0 +1,267 @@
+From 727659f5abe574503dbbf854be95af51a81dcff4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 10 Nov 2026 16:47:34 +0100
+Subject: [PATCH] Add a usage log: app opens, resumes and logins
+
+- New table and function in database/usage-log.sql; the server records
+  the IP address and country, the app sends time and device details
+- Entries are queued on the phone and sent when there is a connection
+- Short notice in Settings that opens are recorded
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HJmxuL9TE8G1yipBAiDi2D
+---
+ database/usage-log.sql  | 94 +++++++++++++++++++++++++++++++++++++++++
+ src/App.tsx             | 12 +++++-
+ src/pages/ShopsPage.tsx |  3 ++
+ src/utils/usageLog.ts   | 79 ++++++++++++++++++++++++++++++++++
+ 4 files changed, 186 insertions(+), 2 deletions(-)
+ create mode 100644 database/usage-log.sql
+ create mode 100644 src/utils/usageLog.ts
+
+diff --git a/database/usage-log.sql b/database/usage-log.sql
+new file mode 100644
+index 0000000..fa19163
+--- /dev/null
++++ b/database/usage-log.sql
+@@ -0,0 +1,94 @@
++-- Usage log: one row every time the app is opened, resumed or logged into.
++--
++-- HOW TO INSTALL: Supabase dashboard -> SQL Editor -> paste this whole file -> Run.
++-- It is safe to run more than once.
++--
++-- HOW TO READ IT: Supabase dashboard -> Table Editor -> usage_log,
++-- or run one of the example queries at the bottom of this file.
++
++create table if not exists public.usage_log (
++  id          bigint generated always as identity primary key,
++  user_id     uuid not null references auth.users (id) on delete cascade,
++  event       text not null,               -- 'open', 'resume' or 'login'
++  created_at  timestamptz not null default now(),  -- when the server received it
++  client_time timestamptz,                 -- when it happened on the phone
++  ip          text,                        -- filled in by the server, not the phone
++  country     text,                        -- 2-letter country code, from the IP
++  user_agent  text,                        -- phone model / browser
++  details     jsonb not null default '{}'  -- screen size, installed or browser, ...
++);
++
++create index if not exists usage_log_created_at_idx on public.usage_log (created_at desc);
++create index if not exists usage_log_user_id_idx on public.usage_log (user_id);
++
++-- Row level security ON and no policies: users of the app can neither read
++-- nor change the log through the API. Only you can see it, in the dashboard.
++alter table public.usage_log enable row level security;
++
++-- The app calls this function. The server itself reads the IP address and
++-- country from the incoming request, so the app cannot fake them.
++create or replace function public.log_usage(
++  p_event text,
++  p_client_time timestamptz default null,
++  p_user_agent text default null,
++  p_details jsonb default '{}'::jsonb
++)
++returns void
++language plpgsql
++security definer
++set search_path = ''
++as $$
++declare
++  headers json := nullif(current_setting('request.headers', true), '')::json;
++  v_ip text;
++begin
++  if auth.uid() is null then
++    return; -- only logged-in users are logged
++  end if;
++
++  if p_event not in ('open', 'resume', 'login') then
++    return;
++  end if;
++
++  -- x-forwarded-for can be a list "client, proxy1, proxy2": the first is the client.
++  v_ip := coalesce(
++    headers ->> 'cf-connecting-ip',
++    nullif(trim(split_part(headers ->> 'x-forwarded-for', ',', 1)), ''),
++    headers ->> 'x-real-ip'
++  );
++
++  insert into public.usage_log (user_id, event, client_time, ip, country, user_agent, details)
++  values (
++    auth.uid(),
++    p_event,
++    p_client_time,
++    v_ip,
++    headers ->> 'cf-ipcountry',
++    left(coalesce(p_user_agent, headers ->> 'user-agent'), 400),
++    coalesce(p_details, '{}'::jsonb)
++  );
++end;
++$$;
++
++revoke all on function public.log_usage(text, timestamptz, text, jsonb) from public, anon;
++grant execute on function public.log_usage(text, timestamptz, text, jsonb) to authenticated;
++
++-- ── Example queries (run them in the SQL Editor) ──────────────────────────
++--
++-- The latest 100 entries, with the login name instead of the user id:
++--   select l.created_at, u.email, l.event, l.ip, l.country, l.user_agent, l.details
++--   from public.usage_log l join auth.users u on u.id = l.user_id
++--   order by l.created_at desc limit 100;
++--
++-- On how many days was the app used, per month (proof of use):
++--   select date_trunc('month', created_at) as month,
++--          count(distinct created_at::date) as days_used,
++--          count(*) as events
++--   from public.usage_log group by 1 order by 1 desc;
++--
++-- Every IP address the app was used from, and when it was last seen (security):
++--   select ip, country, count(*) as events, max(created_at) as last_seen
++--   from public.usage_log group by ip, country order by last_seen desc;
++--
++-- Delete entries older than 12 months (do this from time to time):
++--   delete from public.usage_log where created_at < now() - interval '12 months';
+diff --git a/src/App.tsx b/src/App.tsx
+index bae0f22..d69854b 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -6,6 +6,7 @@ import { useGroups } from './hooks/useGroups';
+ import { logout, onAuthChange } from './utils/auth';
+ import { fetchHome, saveHome, type HomeAddress } from './utils/storage';
+ import { CACHE_KEYS, readCache, writeCache, clearCache } from './utils/localCache';
++import { logUsage } from './utils/usageLog';
+ import { LoginScreen } from './components/LoginScreen';
+ import { BottomNav } from './components/BottomNav';
+ import { ShopsPage } from './pages/ShopsPage';
+@@ -87,6 +88,10 @@ function App() {
+       if (loggedIn && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+         refreshData();
+       }
++      // One "open" entry per start of the app, for a logged-in user.
++      if (loggedIn && event === 'INITIAL_SESSION') {
++        setTimeout(() => logUsage('open'), 0);
++      }
+       if (event === 'SIGNED_OUT') {
+         // Don't leave one user's shops on the phone for the next one.
+         clearCache();
+@@ -110,7 +115,10 @@ function App() {
+       }
+       const wasAwayLong = hiddenAt !== null && Date.now() - hiddenAt > RESUME_DATA_REFRESH_MS;
+       hiddenAt = null;
+-      if (wasAwayLong && readFlag(LOGGED_IN_KEY)) refreshData();
++      if (wasAwayLong && readFlag(LOGGED_IN_KEY)) {
++        refreshData();
++        logUsage('resume');
++      }
+     };
+ 
+     document.addEventListener('visibilitychange', handleVisibilityChange);
+@@ -132,7 +140,7 @@ function App() {
+   }
+ 
+   if (!authed) {
+-    return <LoginScreen onLogin={() => { /* onAuthChange will handle it */ }} />;
++    return <LoginScreen onLogin={() => logUsage('login')} />;
+   }
+ 
+   const handleLogout = async () => {
+diff --git a/src/pages/ShopsPage.tsx b/src/pages/ShopsPage.tsx
+index 6f45c3c..7732599 100644
+--- a/src/pages/ShopsPage.tsx
++++ b/src/pages/ShopsPage.tsx
+@@ -161,6 +161,9 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
+           {home && (
+             <p className="text-xs text-gray-500">Home: {home.address}, {home.city}</p>
+           )}
++          <p className="text-[11px] text-gray-400">
++            For security and support, this app records when it is opened, together with the device type and IP address.
++          </p>
+         </div>
+       )}
+ 
+diff --git a/src/utils/usageLog.ts b/src/utils/usageLog.ts
+new file mode 100644
+index 0000000..d41250e
+--- /dev/null
++++ b/src/utils/usageLog.ts
+@@ -0,0 +1,79 @@
++import { supabase } from './supabase';
++
++// Records that the app was opened / resumed / logged into (see
++// database/usage-log.sql). The server adds the IP address and country.
++//
++// Entries wait in a small queue on the phone first, so an "open" that happens
++// without signal is not lost — it is sent the next time there is a connection.
++
++export type UsageEvent = 'open' | 'resume' | 'login';
++
++interface QueuedEvent {
++  event: UsageEvent;
++  at: string;
++  details: Record<string, unknown>;
++}
++
++const QUEUE_KEY = 'usage-log-queue';
++const MAX_QUEUED = 50;
++
++function readQueue(): QueuedEvent[] {
++  try {
++    const parsed = JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]');
++    return Array.isArray(parsed) ? parsed : [];
++  } catch {
++    return [];
++  }
++}
++
++function writeQueue(queue: QueuedEvent[]) {
++  try {
++    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-MAX_QUEUED)));
++  } catch {
++    // Ignore — logging must never get in the way of the app.
++  }
++}
++
++function deviceDetails(): Record<string, unknown> {
++  return {
++    // true = opened from the home-screen icon, false = opened in the browser
++    installed: window.matchMedia('(display-mode: standalone)').matches,
++    screen: `${window.screen.width}x${window.screen.height}`,
++    language: navigator.language,
++    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
++  };
++}
++
++let flushing = false;
++
++async function flush() {
++  if (flushing) return;
++  flushing = true;
++  try {
++    let queue = readQueue();
++    while (queue.length > 0) {
++      const next = queue[0];
++      const { error } = await supabase.rpc('log_usage', {
++        p_event: next.event,
++        p_client_time: next.at,
++        p_user_agent: navigator.userAgent,
++        p_details: next.details,
++      });
++      if (error) return; // no signal or not logged in: try again next time
++      // Re-read in case something was added while we were sending.
++      queue = readQueue().slice(1);
++      writeQueue(queue);
++    }
++  } catch {
++    // Ignore.
++  } finally {
++    flushing = false;
++  }
++}
++
++export function logUsage(event: UsageEvent) {
++  const queue = readQueue();
++  queue.push({ event, at: new Date().toISOString(), details: deviceDetails() });
++  writeQueue(queue);
++  void flush();
++}
+-- 
+2.43.0
+
