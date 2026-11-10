@@ -161,6 +161,9 @@ export function ShopsPage({ shops, groups, home, onAdd, onUpdate, onDelete, onRe
           {home && (
             <p className="text-xs text-gray-500">Home: {home.address}, {home.city}</p>
           )}
+          <p className="text-[11px] text-gray-400">
+            For security and support, this app records when it is opened, together with the device type and IP address.
+          </p>
         </div>
       )}
 

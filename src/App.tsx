@@ -6,6 +6,7 @@ import { useGroups } from './hooks/useGroups';
 import { logout, onAuthChange } from './utils/auth';
 import { fetchHome, saveHome, type HomeAddress } from './utils/storage';
 import { CACHE_KEYS, readCache, writeCache, clearCache } from './utils/localCache';
+import { logUsage } from './utils/usageLog';
 import { LoginScreen } from './components/LoginScreen';
 import { BottomNav } from './components/BottomNav';
 import { ShopsPage } from './pages/ShopsPage';
@@ -87,6 +88,10 @@ function App() {
       if (loggedIn && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
         refreshData();
       }
+      // One "open" entry per start of the app, for a logged-in user.
+      if (loggedIn && event === 'INITIAL_SESSION') {
+        setTimeout(() => logUsage('open'), 0);
+      }
       if (event === 'SIGNED_OUT') {
         // Don't leave one user's shops on the phone for the next one.
         clearCache();
@@ -110,7 +115,10 @@ function App() {
       }
       const wasAwayLong = hiddenAt !== null && Date.now() - hiddenAt > RESUME_DATA_REFRESH_MS;
       hiddenAt = null;
-      if (wasAwayLong && readFlag(LOGGED_IN_KEY)) refreshData();
+      if (wasAwayLong && readFlag(LOGGED_IN_KEY)) {
+        refreshData();
+        logUsage('resume');
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -132,7 +140,7 @@ function App() {
   }
 
   if (!authed) {
-    return <LoginScreen onLogin={() => { /* onAuthChange will handle it */ }} />;
+    return <LoginScreen onLogin={() => logUsage('login')} />;
   }
 
   const handleLogout = async () => {
